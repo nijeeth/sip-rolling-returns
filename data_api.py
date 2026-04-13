@@ -89,17 +89,46 @@ def search_funds(query: str) -> List[dict]:
     except Exception:
         return []
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=86400)
 def fetch_all_funds() -> List[dict]:
     """
     Fetch the complete list of all mutual funds from mfapi.in.
-    Cached for the session — only fetched once per app startup.
+    - Cached by Streamlit for 24h (list rarely changes).
+    - Long timeout (30s) + 3 retries with back-off for Streamlit Cloud.
+    - Falls back to an on-disk JSON cache if the API is temporarily unreachable.
     Returns a list of dicts with keys: schemeName, schemeCode.
-    Returns empty list if fetch fails.
+    Returns empty list only if every attempt fails AND no disk cache exists.
     """
+    import json
+    FUND_LIST_TIMEOUT = 30
+    FUND_LIST_RETRIES = 3
+    cache_file = os.path.join(CACHE_DIR, "all_funds_cache.json")
+
+    # Try API with retries
+    for attempt in range(FUND_LIST_RETRIES):
+        try:
+            r = requests.get(API_BASE_URL, timeout=FUND_LIST_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            if data:
+                try:
+                    with open(cache_file, "w") as fh:
+                        json.dump(data, fh)
+                except Exception:
+                    pass
+                return data
+        except Exception:
+            if attempt < FUND_LIST_RETRIES - 1:
+                time.sleep(2 ** attempt)
+
+    # API failed — try on-disk cache
     try:
-        r = requests.get(API_BASE_URL, timeout=NAV_API_TIMEOUT)
-        r.raise_for_status()
-        return r.json()
+        if os.path.exists(cache_file):
+            with open(cache_file) as fh:
+                data = json.load(fh)
+            if data:
+                return data
     except Exception:
-        return []
+        pass
+
+    return []
