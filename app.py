@@ -25,7 +25,7 @@ from config import (
     DATA_SOURCE_URL
 )
 from data_api import fetch_nav, search_funds, fetch_all_funds
-from calculations import calculate_all_possible_rolling_sip
+from calculations import calculate_all_possible_rolling_sip, xirr_to_fv
 from utils import validate_inputs, plot_rolling_xirr, build_excel, fmt_inr
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -680,7 +680,7 @@ with tab1:
             months_xl   = years_r * 12
             invested_xl = sip_amount_r * months_xl
             df_export['Invested Amount (\u20b9)'] = invested_xl
-            df_export['Total Amount (\u20b9)']    = result_df['XIRR %'].apply(
+            df_export['Total Amount (₹)']    = result_df['XIRR %'].apply(
                 lambda v: round(xirr_to_fv(v, months_xl, sip_amount_r), 0)
             )
 
