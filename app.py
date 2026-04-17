@@ -616,7 +616,9 @@ with tab1:
 
             months    = years_r * 12
             invested  = sip_amount_r * months
-            fv_series = result_df['Final Value']
+            fv_series = result_df['XIRR %'].apply(
+                lambda v: round(xirr_to_fv(v, months, sip_amount_r), 0)
+            )
             labels = ['Invested', 'Worst', '10th %ile', '25th %ile',
                       'Mean', 'Median', '75th %ile', '90th %ile', 'Best']
             values = [
@@ -678,7 +680,9 @@ with tab1:
             months_xl   = years_r * 12
             invested_xl = sip_amount_r * months_xl
             df_export['Invested Amount (\u20b9)'] = invested_xl
-            df_export['Total Amount (\u20b9)']    = result_df['Final Value'].apply(lambda v: round(v, 0))
+            df_export['Total Amount (\u20b9)']    = result_df['XIRR %'].apply(
+                lambda v: round(xirr_to_fv(v, months_xl, sip_amount_r), 0)
+            )
 
         excel_buf = build_excel(
             df_export, fund_name, years_r,
