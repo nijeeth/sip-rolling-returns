@@ -4,7 +4,9 @@ This module contains all calculation logic including XIRR, NAV processing, and r
 """
 
 import pandas as pd
+from io import StringIO
 import numpy as np
+import streamlit as st
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import List, Tuple, Optional
@@ -57,11 +59,6 @@ def xirr(cashflows: List[float], dates: List[datetime]) -> float:
             break
         adj = npv(rate) / drv
         rate -= adj
-        # Guard: if Newton-Raphson overshoots to rate <= -1, (1 + rate)
-        # hits zero or goes negative, causing ZeroDivisionError or complex
-        # numbers in the next iteration. Clamp back to a safe floor.
-        if rate <= -1.0:
-            rate = -0.9999
         if abs(adj) < XIRR_TOLERANCE:
             break
 
@@ -102,9 +99,9 @@ def get_next_nav_fast(nav_dates: np.ndarray, nav_vals: np.ndarray,
     return pd.Timestamp(nav_dates[idx]), nav_vals[idx]
 
 
+@st.cache_data(show_spinner=False)
 def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start: pd.Timestamp, 
-                                      range_end: pd.Timestamp, sip_amount: int = DEFAULT_SIP_AMOUNT,
-                                      on_progress=None) -> pd.DataFrame:
+                                      range_end: pd.Timestamp, sip_amount: int = DEFAULT_SIP_AMOUNT) -> pd.DataFrame:
     """
     Calculate rolling SIP returns for all possible start dates in the given range.
     
@@ -119,7 +116,7 @@ def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start
         DataFrame with columns: Start Date, End Date, Redemption Date, Instalments, XIRR %
         Returns empty DataFrame if insufficient data
     """
-    nav_df = pd.read_json(nav_df_json)
+    nav_df = pd.read_json(StringIO(nav_df_json))
     nav_df['date'] = pd.to_datetime(nav_df['date'])
 
     if nav_df.empty:
@@ -142,16 +139,17 @@ def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start
 
     results = []
     n = len(start_candidates)
+    progress = st.progress(0, text="Calculating rolling periods...")
 
     for i, start_date in enumerate(start_candidates, 1):
         cashflows    = []
         invest_dates = []
         units        = 0.0
 
-        first_nav_date, first_nav_val = get_next_nav_fast(nav_dates, nav_vals, start_date)
+        _, first_nav_val = get_next_nav_fast(nav_dates, nav_vals, start_date)
         units += sip_amount / first_nav_val
         cashflows.append(-sip_amount)
-        invest_dates.append(first_nav_date)
+        invest_dates.append(start_date)
 
         for m in range(1, months_target):
             scheduled = start_date + relativedelta(months=m)
@@ -163,6 +161,8 @@ def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start
             invest_dates.append(nav_date)
 
         if len(cashflows) != months_target:
+            if i % PROGRESS_UPDATE_INTERVAL == 0:
+                progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
             continue
 
         last_date = invest_dates[-1]
@@ -171,6 +171,8 @@ def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start
             nav_dates, nav_vals, last_date + relativedelta(days=1)
         )
         if redeem_date is None:
+            if i % PROGRESS_UPDATE_INTERVAL == 0:
+                progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
             continue
 
         final_value = units * redeem_nav
@@ -179,6 +181,8 @@ def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start
 
         irr_val = xirr(cashflows, invest_dates)
         if np.isnan(irr_val):
+            if i % PROGRESS_UPDATE_INTERVAL == 0:
+                progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
             continue
 
         results.append({
@@ -186,17 +190,33 @@ def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start
             'End Date':        last_date.date(),
             'Redemption Date': redeem_date.date(),
             'Instalments':     months_target,
-            'XIRR %':          round(irr_val * 100, 2),
-            'Final Value':     round(final_value, 2)
+            'XIRR %':          round(irr_val * 100, 2)
         })
 
-        if on_progress and i % PROGRESS_UPDATE_INTERVAL == 0:
-            on_progress(i / n)
+        if i % PROGRESS_UPDATE_INTERVAL == 0:
+            progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
 
-    if on_progress:
-        on_progress(1.0)
+    progress.empty()
 
     if not results:
         return pd.DataFrame()
 
     return pd.DataFrame(results).sort_values('Start Date').reset_index(drop=True)
+
+
+def xirr_to_fv(xirr_pct: float, n_months: int, amount: float) -> float:
+    """
+    Convert XIRR percentage to future value of SIP.
+    
+    Args:
+        xirr_pct: XIRR as a percentage (e.g., 12.5 for 12.5%)
+        n_months: Number of monthly installments
+        amount: Monthly SIP amount
+    
+    Returns:
+        Future value of the SIP
+    """
+    r = xirr_pct / 100 / 12  # Convert annual XIRR to monthly rate
+    if abs(r) < 1e-9:
+        return amount * n_months
+    return amount * (((1 + r) ** n_months - 1) / r) * (1 + r)
