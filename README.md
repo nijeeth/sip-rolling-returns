@@ -1,6 +1,6 @@
 # SIP Rolling Returns - Modular Version
 
-A clean, modular Streamlit application for analyzing rolling SIP returns in mutual funds.
+A Streamlit application for analyzing rolling SIP and lump-sum returns in Indian mutual funds. NAV data comes from [mfapi.in](https://www.mfapi.in/).
 
 
 
@@ -14,10 +14,13 @@ A clean, modular Streamlit application for analyzing rolling SIP returns in mutu
 sip_app/
 ├── app.py              # Main Streamlit UI (run this file)
 ├── config.py           # All configuration constants
-├── calculations.py     # Core calculation logic (XIRR, rolling SIP)
-├── data_api.py        # API calls to mfapi.in
-├── utils.py           # Helper functions (formatting, validation, Excel)
-└── README.md          # This file
+├── calculations.py     # XIRR, lump-sum CAGR, rolling windows
+├── data_api.py         # API calls to mfapi.in
+├── utils.py            # Formatting, validation, chart, Excel
+├── logic_notes.docx    # How the returns are calculated
+├── CHANGELOG.md        # Version history
+├── WHATS_NEW.md        # Plain-language notes for each version
+└── README.md           # This file
 ```
 
 
@@ -35,10 +38,11 @@ sip_app/
 - No logic, just values
 
 ### **calculations.py** - Core Calculations
-- XIRR calculation (Newton-Raphson method)
-- Rolling SIP calculations
-- NAV array processing
-- **No UI code** - pure business logic
+- XIRR via a bracketed search (handles deep losses)
+- Lump-sum CAGR from the two NAV dates
+- Rolling SIP and lump-sum windows
+- The rupee result is the actual redemption value
+- **No UI code** in the pure functions
 
 ### **data_api.py** - API Interactions
 - Fetch NAV data from mfapi.in
@@ -60,7 +64,7 @@ sip_app/
 ```
 app.py
   ├── imports: config, data_api, calculations, utils
-  └── calls: fetch_nav(), search_funds(), calculate_all_possible_rolling_sip()
+  └── calls: fetch_nav(), search_funds(), rolling SIP and lump-sum calculations
 
 calculations.py
   ├── imports: config
@@ -95,14 +99,14 @@ This tool is for educational purposes only. Not financial advice. Mutual fund in
 1. **User enters inputs** → `app.py` (UI)
 2. **Validate inputs** → `utils.validate_inputs()` 
 3. **Fetch NAV data** → `data_api.fetch_nav()`
-4. **Calculate XIRR** → `calculations.calculate_all_possible_rolling_sip()`
+4. **Calculate returns** → `calculations.calculate_rolling_sip()` or `calculate_rolling_lumpsum()`
 5. **Display results** → `app.py` (UI)
 6. **Generate Excel** → `utils.build_excel()`
 
 ### Constants Used Throughout
 
 All defined in `config.py`:
-- `XIRR_TOLERANCE = 1e-10` → Used by `calculations.py`
+- `XIRR_TOLERANCE = 1e-12` → Used by `calculations.py`
 - `CACHE_EXPIRY_DAYS = 1` → Used by `data_api.py`
 - `LAKH_THRESHOLD = 100000` → Used by `utils.py`
 - `DEFAULT_SIP_AMOUNT = 1000` → Used by `app.py`

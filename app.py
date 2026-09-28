@@ -4,29 +4,42 @@ Main UI file for the SIP Rolling Returns analysis tool.
 """
 
 from datetime import date
+from html import escape
+import os
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
 
 from config import (
-    APP_TITLE,
-    APP_ICON,
     MIN_SEARCH_QUERY_LENGTH,
     MAX_SEARCH_RESULTS,
     ROLLING_PERIOD_OPTIONS,
     MIN_SIP_AMOUNT,
     MAX_SIP_AMOUNT,
     DEFAULT_SIP_AMOUNT,
+    AMOUNT_STEP,
     MIN_VALID_PERIODS,
-    CREATOR_NAME,
-    CREATOR_EMAIL,
-    DATA_SOURCE_NAME,
-    DATA_SOURCE_URL
 )
-from data_api import fetch_nav, search_funds, fetch_all_funds
-from calculations import calculate_all_possible_rolling_sip, xirr_to_fv
-from utils import validate_inputs, plot_rolling_xirr, build_excel, fmt_inr
+from data_api import MfapiError, fetch_nav, search_funds
+from calculations import (
+    calculate_all_possible_rolling_lumpsum,
+    calculate_all_possible_rolling_sip,
+    scale_final_values,
+)
+from utils import (
+    validate_inputs,
+    plot_rolling_xirr,
+    build_excel,
+    fmt_inr,
+    round_to_step,
+    is_idcw_plan,
+)
+
+IDCW_WARNING = (
+    "This is an IDCW (dividend) plan. Payouts are not reinvested in this calculator, "
+    "so the return is lower than the Growth option of the same fund."
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE CONFIGURATION
@@ -132,11 +145,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Floating go-to-top button using JS (anchor href="#" doesn't work in Streamlit iframe)
-import streamlit.components.v1 as _components
-_components.html("""
+# Back to top. Drawn on the page itself (not inside a zero-height frame, which hid the button).
+st.html(
+    """
 <style>
-  #topbtn {
+  #sip-topbtn {
     position: fixed; bottom: 32px; right: 32px; z-index: 9999;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white; border: none; border-radius: 50%;
@@ -145,16 +158,28 @@ _components.html("""
     display: flex; align-items: center; justify-content: center;
     transition: transform 0.2s, box-shadow 0.2s;
   }
-  #topbtn:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(102,126,234,0.7); }
+  #sip-topbtn:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(102,126,234,0.7); }
 </style>
-<button id="topbtn" title="Back to top" onclick="
-  var el = window.parent.document.querySelector('section.main') ||
-            window.parent.document.querySelector('.block-container') ||
-            window.parent.document.querySelector('[data-testid=stAppViewContainer]') ||
-            window.parent.document.documentElement;
-  el.scrollTo ? el.scrollTo({top:0,behavior:'smooth'}) : el.scrollTop=0;
-">↑</button>
-""", height=0)
+<button id="sip-topbtn" title="Back to top" type="button">↑</button>
+<script>
+  (function () {
+    var btn = document.getElementById('sip-topbtn');
+    if (!btn) return;
+    if (btn.parentElement !== document.body) document.body.appendChild(btn);
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      var el = document.querySelector('section.main') ||
+               document.querySelector('[data-testid="stAppViewContainer"]') ||
+               document.documentElement;
+      if (el.scrollTo) el.scrollTo({top: 0, behavior: 'smooth'});
+      else el.scrollTop = 0;
+    });
+  })();
+</script>
+""",
+    unsafe_allow_javascript=True,
+)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HERO BANNER
@@ -172,7 +197,7 @@ st.markdown("""
     </a>
     <p style='color: rgba(255,255,255,0.82); font-size: 1.05em;
               font-weight: 400; margin: 0;'>
-        Analyze historical rolling returns for systematic investment plans
+        Analyze historical rolling returns for SIP and lump-sum investments
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -188,92 +213,87 @@ tab1, tab2 = st.tabs(["🏠 Home", "ℹ️ How It Works"])
 # ══════════════════════════════════════════════════════════════════════════════
 
 with tab2:
-    import streamlit.components.v1 as _c
-
-    # TOC — uses zero-height iframes to inject anchor divs into the parent page,
-    # then scrolls to them. The content itself is plain st.markdown (no box/iframe).
-    _c.html("""
+    st.markdown(
+        """
+<div class="toc-box">
+  <h4>📋 Table of Contents</h4>
+  <a href="#how-to-use">➊ &nbsp;How to Use This Calculator</a>
+  <a href="#understanding-results">➋ &nbsp;Understanding the Results</a>
+  <a href="#example-interpretation">➌ &nbsp;Example Interpretation</a>
+  <a href="#calculation-logic">➍ &nbsp;Calculation Logic</a>
+</div>
 <style>
   .toc-box { background:#f0f4ff; border-radius:8px; padding:16px 22px;
              border:1px solid #c7d2fe; font-family:Arial,sans-serif; }
   .toc-box h4 { color:#4338ca; margin:0 0 10px 0; font-size:0.85em;
                 text-transform:uppercase; letter-spacing:0.07em; }
   .toc-box a { color:#4f46e5; text-decoration:none; font-size:0.95em;
-               display:block; padding:5px 0; cursor:pointer; }
+               display:block; padding:5px 0; }
   .toc-box a:hover { color:#7c3aed; text-decoration:underline; }
 </style>
-<div class="toc-box">
-  <h4>📋 Table of Contents</h4>
-  <a onclick="scrollToHeading('How to Use This Calculator')">➊ &nbsp;How to Use This Calculator</a>
-  <a onclick="scrollToHeading('Understanding the Results')">➋ &nbsp;Understanding the Results</a>
-  <a onclick="scrollToHeading('Example Interpretation')">➌ &nbsp;Example Interpretation</a>
-  <a onclick="scrollToHeading('Calculation Logic')">➍ &nbsp;Calculation Logic</a>
-</div>
-<script>
-function scrollToHeading(text) {
-  var doc = window.parent.document;
-  var headings = doc.querySelectorAll('h1, h2, h3, h4');
-  for (var i = 0; i < headings.length; i++) {
-    if (headings[i].textContent.indexOf(text) !== -1) {
-      headings[i].scrollIntoView({behavior: 'smooth', block: 'start'});
-      return;
-    }
-  }
-}
-</script>
-""", height=185)
+""",
+        unsafe_allow_html=True,
+    )
 
+    st.markdown('<a id="how-to-use"></a>', unsafe_allow_html=True)
     st.markdown("""
 ## 🧭 How to Use This Calculator
 
 **Step 1 — Search for a Fund**
-Type at least 4 characters of the fund name or scheme code and select from the dropdown.
+Type at least 3 characters of the fund name, or enter the scheme code, then pick the fund from the list. The scheme code is shown next to the name so two funds that share a name are easy to tell apart.
 
 **Step 2 — Select Rolling Period**
-Choose 1, 2, 3, 5, 7, or 10 years. This is the SIP investment duration for each rolling window.
+Choose 1, 2, 3, 5, 7, or 10 years. This is how long each investment is held.
 
 **Step 3 — Choose Date Range**
 Set the From and To dates for your analysis window.
 - **From Date** must be on or after the fund's inception date.
 - **To Date** must be on or before the last available NAV date for the fund.
+- Every investment date and the sale date must fall on or before the To Date. If they do not, that start date is left out.
 
-**Step 4 — Enter SIP Amount**
-Must be a multiple of ₹500. Minimum: ₹500 | Maximum: ₹1,00,000. The app will auto-round if you type a non-multiple.
+**Step 4 — SIP or Lump sum**
+Leave **Lump sum** off for a monthly SIP. Turn it on to invest a single amount once. The amount box label changes to match. The amount must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
 
 **Step 5 — Click Calculate**
-The app computes rolling returns for every possible SIP start date in your selected range.
+The app repeats the investment for every valid start date in your selected range.
+
+IDCW (dividend) plans are flagged. Their payouts are not added back, so the return is lower than the Growth option of the same fund.
 
 ---
     """, unsafe_allow_html=True)
 
+    st.markdown('<a id="understanding-results"></a>', unsafe_allow_html=True)
     st.markdown("""
 ## 📊 Understanding the Results
 
 ### Statistics Table
-- **Min / Max** — Worst and best XIRR achieved across all rolling periods
+- **Min / Max** — Worst and best return across all rolling periods
 - **Mean** — Average return across all periods
 - **Median** — Middle value (50th percentile)
 - **25th / 75th %ile** — Lower and upper quartiles
 - **Std Dev** — Volatility of returns
 
+SIP results are labelled **XIRR**. Lump-sum results are labelled **CAGR**. Both are annual percentages.
+
 ### Distribution Table
 Shows what % of rolling periods fell into each return range (e.g. 0–5%, 5–10%, etc.). Helps you understand the probability of different outcomes.
 
-### SIP Amount Analysis
-- **Invested** — Total amount put in (SIP amount × number of months)
-- **Worst / Best** — Minimum and maximum final corpus across all rolling periods
-- **Percentiles** — Distribution of what the final corpus could have been
+### Amount Analysis
+- **Invested** — For a SIP, the monthly amount × number of months. For a lump sum, the single amount you invested.
+- **Worst / Best** — Smallest and largest redemption value across all rolling periods. This is the real sale value (units × NAV), not a figure rebuilt from the return percentage.
+- **Percentiles** — Distribution of what that redemption value could have been
 
-### Rolling XIRR Chart
-- **X-axis** — SIP start date
-- **Y-axis** — XIRR percentage
+### Rolling Return Chart
+- **X-axis** — Investment start date
+- **Y-axis** — XIRR (SIP) or CAGR (lump sum)
 - **Orange line** — Mean return across all periods
 
-Helps visualise how returns varied depending on when you started your SIP.
+Helps visualise how returns varied depending on when you started.
 
 ---
     """, unsafe_allow_html=True)
 
+    st.markdown('<a id="example-interpretation"></a>', unsafe_allow_html=True)
     st.markdown("""
 ## 💡 Example Interpretation
 
@@ -298,18 +318,22 @@ This gives you a realistic expectation of what might happen in future!
 ---
     """, unsafe_allow_html=True)
 
+    st.markdown('<a id="calculation-logic"></a>', unsafe_allow_html=True)
     st.markdown("""
 ## 🔢 Calculation Logic
 
-This tool uses XIRR (Extended Internal Rate of Return) to calculate rolling SIP returns. The methodology covers how NAV dates are selected, how missing NAV dates are handled, how redemption dates are determined, and when a rolling period is accepted or rejected.
+**SIP.** Each month the tool buys units at the next available NAV. On the next NAV after the last instalment it sells every unit. The rupee result is that sale value. XIRR is the annual rate that makes those cash flows balance, using the actual number of days and a 365.25-day year. The rate is found by a bracketed search that still works when the loss is very large.
 
-For a full explanation of the calculation steps, assumptions, and edge cases — download the document below.
+**Lump sum.** The tool buys once, at the next NAV on or after the start date, and sells at the first NAV on or after the same date N years later. CAGR is (end NAV / start NAV) raised to 1 / years, where years is the actual number of days between those two NAV dates divided by 365.25. The rupee result is amount × end NAV / start NAV.
+
+A period is kept only when every buy and the sale fall on or before the To Date. Zero NAVs are ignored.
+
+For the full steps, assumptions, and edge cases — download the document below.
     """, unsafe_allow_html=True)
 
     # Download button for calculation logic document
-    import os as _os
-    _doc_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "logic_notes.docx")
-    if _os.path.exists(_doc_path):
+    _doc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logic_notes.docx")
+    if os.path.exists(_doc_path):
         with open(_doc_path, "rb") as _f:
             _doc_bytes = _f.read()
         st.download_button(
@@ -317,7 +341,7 @@ For a full explanation of the calculation steps, assumptions, and edge cases —
             data=_doc_bytes,
             file_name="SIP_Rolling_Returns_Calculation_Logic.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=False,
+            width="content",
         )
     else:
         st.caption(f"_File not found at: {_doc_path}_")
@@ -326,53 +350,94 @@ For a full explanation of the calculation steps, assumptions, and edge cases —
 # TAB 1: HOME - MAIN DASHBOARD (NO SIDEBAR)
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _latest_whats_new() -> str:
+    """First version section of WHATS_NEW.md, for the collapsed note on the home tab."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "WHATS_NEW.md")
+    try:
+        lines = open(path, encoding="utf-8").read().splitlines()
+    except OSError:
+        return ""
+    start = next((i for i, line in enumerate(lines) if line.startswith("## ")), None)
+    if start is None:
+        return ""
+    end = next((j for j in range(start + 1, len(lines)) if lines[j].startswith("## ")), len(lines))
+    return "\n".join(lines[start:end]).strip()
+
+
 with tab1:
 
     # ── Session state defaults (persists across reruns) ──────────────────────
     if 'results' not in st.session_state:
         st.session_state.results = None
 
+    _whats_new = _latest_whats_new()
+    if _whats_new:
+        with st.expander("What's new", expanded=False):
+            st.markdown(_whats_new)
 
     # ══════════════════════════════════════════════════════════════════════════
     # INPUT SECTION - IN MAIN AREA (NO SIDEBAR)
     # ══════════════════════════════════════════════════════════════════════════
 
-
-    
-    # ── Fund Search: combobox via st.selectbox ───────────────────────────────
-    # Full fund list is fetched once at startup and cached for the session.
-    # st.selectbox has a built-in type-to-filter search field — the user
-    # types inside the dropdown and it filters live, exactly like a combobox.
+    # Search-as-you-type against mfapi. The full scheme list is tens of
+    # thousands of rows and made the page slow, so it is not loaded here.
     st.markdown("#### Select Mutual Fund")
-
-    all_funds = fetch_all_funds()
 
     col_fund, _ = st.columns([3.8, 3])
     with col_fund:
-        if not all_funds:
-            st.error("Could not load fund list. Check your connection and refresh.")
-            selected_fund_code = None
-            selected_fund_name = None
-        else:
-            # Build label→code mapping; label is what the user sees and searches
-            fund_labels = [f["schemeName"] for f in all_funds]
-            fund_map    = {f["schemeName"]: str(f["schemeCode"]) for f in all_funds}
+        fund_query = st.text_input(
+            "Search mutual fund",
+            placeholder=f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters of the fund name, or a scheme code",
+            label_visibility="collapsed",
+            key="fund_query",
+        )
+        selected_fund_code = None
+        selected_fund_name = None
+        query = (fund_query or "").strip()
+        if query and len(query) < MIN_SEARCH_QUERY_LENGTH:
+            st.caption(f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search.")
+        elif query:
+            try:
+                matches = search_funds(query)
+            except MfapiError:
+                st.error("Could not search funds. Check your connection and try again.")
+                matches = None
+            if matches is not None:
+                options = []
+                label_to_fund = {}
+                for fund in matches[:MAX_SEARCH_RESULTS]:
+                    code = str(fund.get("schemeCode", "")).strip()
+                    name = str(fund.get("schemeName", "")).strip()
+                    if not code or not name:
+                        continue
+                    label = f"{name} ({code})"
+                    if label in label_to_fund:
+                        continue
+                    label_to_fund[label] = (code, name)
+                    options.append(label)
+                if not options:
+                    st.caption("No matching funds. Try a different name or scheme code.")
+                else:
+                    if len(matches) > len(options):
+                        st.caption("Showing the first matches. Type more of the name to narrow the list.")
+                    chosen_label = st.selectbox(
+                        "Select Mutual Fund",
+                        options=options,
+                        index=None,
+                        placeholder="Select a fund — the scheme code is in the name",
+                        label_visibility="collapsed",
+                        key=f"chosen_fund_{query}",
+                    )
+                    if chosen_label:
+                        selected_fund_code, selected_fund_name = label_to_fund[chosen_label]
 
-            chosen_label = st.selectbox(
-                "Select Mutual Fund",
-                options=fund_labels,
-                index=None,
-                placeholder="Type to search fund name or scheme...",
-                label_visibility="collapsed",
-                key="chosen_fund",
-            )
-
-            if chosen_label:
-                selected_fund_code = fund_map[chosen_label]
-                selected_fund_name = chosen_label
-            else:
-                selected_fund_code = None
-                selected_fund_name = None
+    shown_results_name = (st.session_state.get("results") or {}).get("fund_name")
+    if (
+        selected_fund_name
+        and is_idcw_plan(selected_fund_name)
+        and selected_fund_name != shown_results_name
+    ):
+        st.warning(IDCW_WARNING)
 
     # ── Row: Rolling Period | From Date | To Date — all on one line ──────────
     # Columns sized just enough for their content; spacer fills the rest.
@@ -402,25 +467,31 @@ with tab1:
             label_visibility="collapsed", key="to_date"
         )
 
-    # ── SIP Amount — mandatory field ─────────────────────────────────────────
-    st.markdown("#### Monthly SIP Amount (₹)")
+    # ── SIP or lump sum amount ───────────────────────────────────────────────
+    lump_sum_on = st.toggle(
+        "Lump sum",
+        value=False,
+        key="lump_sum_mode",
+        help="Turn on to invest once. Leave off for a monthly SIP.",
+    )
+    amount_heading = "Lump sum amount (₹)" if lump_sum_on else "Monthly SIP Amount (₹)"
+    st.markdown(f"#### {amount_heading}")
     col_sip, col_sip_sp = st.columns([1, 4])
     with col_sip:
         # Seed session state on first load only — avoids the "default + session state" conflict
         if "sip_amount" not in st.session_state:
             st.session_state["sip_amount"] = DEFAULT_SIP_AMOUNT
         else:
-            # Round whatever is in the box to nearest 500
-            _raw = st.session_state["sip_amount"]
-            _rounded = int(round(_raw / 500) * 500)
+            # Round half up to the nearest ₹500 (1,250 → 1,500, not banker's 1,000)
+            _rounded = round_to_step(st.session_state["sip_amount"], AMOUNT_STEP)
             _rounded = max(MIN_SIP_AMOUNT, min(MAX_SIP_AMOUNT, _rounded))
             st.session_state["sip_amount"] = _rounded
 
         sip_amount = st.number_input(
-            "Monthly SIP Amount (₹)",
+            amount_heading,
             min_value=MIN_SIP_AMOUNT,
             max_value=MAX_SIP_AMOUNT,
-            step=500,
+            step=AMOUNT_STEP,
             label_visibility="collapsed",
             key="sip_amount"
         )
@@ -431,7 +502,7 @@ with tab1:
     st.divider()
     col_btn1, _ = st.columns([1, 4])
     with col_btn1:
-        calculate_btn = st.button("\u25b6 Calculate Rolling Returns", type="primary", use_container_width=True)
+        calculate_btn = st.button("\u25b6 Calculate Rolling Returns", type="primary", width="stretch")
 
     st.divider()
     
@@ -440,11 +511,13 @@ with tab1:
     # ══════════════════════════════════════════════════════════════════════════
     
     if calculate_btn:
+        # Drop the previous result immediately so a failed recalculation
+        # cannot leave stale numbers on the page.
+        st.session_state.results = None
+        investment_mode = "lumpsum" if lump_sum_on else "sip"
 
-        # Fix #2: Use if/else instead of st.stop() so tab2 stays accessible
-        # Fix #11: Run a cheap basic check first (no API call) to catch obvious
-        # errors early. After fetching NAV, re-run with nav_df for boundary checks.
-        # Both passes go through the same function — no duplicate logic.
+        # Cheap checks first (no API call). After NAV loads, the same function
+        # checks the fund's real first and last NAV dates.
         basic_errors = validate_inputs(selected_fund_code, from_date, to_date, years)
 
         if basic_errors:
@@ -452,15 +525,14 @@ with tab1:
                 st.error(e)
 
         else:
-            # Fetch NAV Data
-            with st.spinner("Fetching NAV data..."):
-                nav_df = fetch_nav(selected_fund_code)
-
-            if nav_df.empty:
+            try:
+                with st.spinner("Fetching NAV data..."):
+                    nav_df = fetch_nav(selected_fund_code)
+            except MfapiError:
+                nav_df = pd.DataFrame()
                 st.error("Could not fetch NAV data. Check your connection and try again.")
 
-            else:
-                # Fix #11: Single combined validation with NAV boundaries
+            if not nav_df.empty:
                 all_errors = validate_inputs(selected_fund_code, from_date, to_date, years, nav_df)
 
                 if all_errors:
@@ -468,26 +540,40 @@ with tab1:
                         st.error(e)
 
                 else:
-                    # SIP amount is now a required field — always use it directly
-                    calculation_sip_amount = sip_amount
+                    calculation_amount = sip_amount
+                    nav_json = nav_df.to_json(date_format="iso")
+                    range_start = pd.Timestamp(from_date)
+                    range_end = pd.Timestamp(to_date)
 
                     start_time = time.time()
-                    result_df = calculate_all_possible_rolling_sip(
-                        nav_df_json=nav_df.to_json(date_format='iso'),
-                        years=years,
-                        range_start=pd.Timestamp(from_date),
-                        range_end=pd.Timestamp(to_date),
-                        sip_amount=calculation_sip_amount
-                    )
+                    if investment_mode == "lumpsum":
+                        result_df = calculate_all_possible_rolling_lumpsum(
+                            nav_df_json=nav_json,
+                            years=years,
+                            range_start=range_start,
+                            range_end=range_end,
+                        )
+                    else:
+                        result_df = calculate_all_possible_rolling_sip(
+                            nav_df_json=nav_json,
+                            years=years,
+                            range_start=range_start,
+                            range_end=range_end,
+                        )
+                    result_df = scale_final_values(result_df, calculation_amount)
                     elapsed = time.time() - start_time
 
-                    if result_df.empty or len(result_df) < MIN_VALID_PERIODS:
-                        st.error("The dataset is too small to generate reliable results. Please extend your date range and try again.")
+                    n_found = 0 if result_df is None or result_df.empty else len(result_df)
+                    if n_found < MIN_VALID_PERIODS:
+                        st.error(
+                            f"Only {n_found} rolling period(s) fit this date range. "
+                            f"At least {MIN_VALID_PERIODS} are needed for a reliable result. "
+                            f"Please extend the date range and try again."
+                        )
 
                     else:
                         # Store everything needed to render results in session_state.
-                        # This means a download-button rerun or any other rerun will
-                        # re-render the results without re-running the calculation.
+                        # A download-button rerun redraws this without calculating again.
                         st.session_state.results = {
                             'result_df':        result_df,
                             'elapsed':          elapsed,
@@ -496,6 +582,7 @@ with tab1:
                             'from_date':        from_date,
                             'to_date':          to_date,
                             'sip_amount':       sip_amount,
+                            'mode':             investment_mode,
                         }
 
     # ── Render results from session_state (persists across all reruns) ────────
@@ -510,7 +597,15 @@ with tab1:
         from_date_r = r['from_date']
         to_date_r   = r['to_date']
         sip_amount_r  = r['sip_amount']
-        x = result_df['XIRR %']
+        is_lump = r.get('mode') == 'lumpsum'
+        return_col = 'CAGR %' if is_lump else 'XIRR %'
+        return_header = 'CAGR %' if is_lump else 'XIRR %'
+        result_kind = 'Rolling Return' if is_lump else 'SIP Rolling Return'
+        safe_fund = escape(fund_name or '')
+        x = result_df[return_col]
+
+        if lump_sum_on != is_lump:
+            st.info("You switched between SIP and Lump sum. Click Calculate to update the results.")
 
         st.markdown(
             f"<div style='margin-bottom:10px;'>"
@@ -521,18 +616,19 @@ with tab1:
             unsafe_allow_html=True
         )
 
+        if is_idcw_plan(fund_name):
+            st.warning(IDCW_WARNING)
+
         st.markdown(
             f"<div style='background:linear-gradient(135deg,#1a237e 0%,#4a148c 100%);"
             f"padding:14px 20px;border-radius:8px;margin:10px 0 16px 0;text-align:center;'>"
             f"<div style='color:#ffffff;font-size:1.05em;font-weight:600;'>📈 Results : "
-            f"{years_r}-Year SIP Rolling Return &nbsp;|&nbsp; "
+            f"{years_r}-Year {result_kind} &nbsp;|&nbsp; "
             f"Date Range: {from_date_r.strftime('%d/%m/%Y')} to {to_date_r.strftime('%d/%m/%Y')}</div>"
-            f"<div style='color:#ffffff;font-size:1em;font-weight:500;margin-top:5px;'>{fund_name}</div></div>",
+            f"<div style='color:#ffffff;font-size:1em;font-weight:500;margin-top:5px;'>{safe_fund}</div></div>",
             unsafe_allow_html=True
         )
 
-        p25 = round(float(x.quantile(0.25)), 2)
-        p75 = round(float(x.quantile(0.75)), 2)
         bins = [
             round((x < 0).mean()                       * 100, 2),
             round(((x >= 0)  & (x < 5)).mean()         * 100, 2),
@@ -573,7 +669,7 @@ with tab1:
                 "font-size:0.82em;text-align:left;border-right:1px solid #c7d2fe;"
                 "border-bottom:2px solid #c7d2fe;'>Metric</th>"
                 "<th style='padding:7px 12px;background:#e8eaf6;color:#3730a3;font-weight:700;"
-                "font-size:0.82em;text-align:right;border-bottom:2px solid #c7d2fe;'>XIRR %</th>"
+                f"font-size:0.82em;text-align:right;border-bottom:2px solid #c7d2fe;'>{return_header}</th>"
                 f"</tr></thead><tbody>{rows1}</tbody></table></div>",
                 unsafe_allow_html=True
             )
@@ -583,11 +679,11 @@ with tab1:
             rows2 = ''.join(
                 f"<tr>"
                 f"<td style='padding:7px 12px;color:#1e293b;border-right:1px solid #cbd5e1;"
-                f"border-bottom:1px solid #e2e8f0;background:{'#f8fafc' if j%2==0 else '#f1f5f9'};'>{r}</td>"
+                f"border-bottom:1px solid #e2e8f0;background:{'#f8fafc' if j%2==0 else '#f1f5f9'};'>{band}</td>"
                 f"<td style='padding:7px 12px;color:#1e293b;text-align:right;"
                 f"border-bottom:1px solid #e2e8f0;background:{'#f8fafc' if j%2==0 else '#f1f5f9'};"
                 f"font-weight:600;'>{p:.2f}</td></tr>"
-                for j,(r,p) in enumerate(zip(ranges, bins))
+                for j,(band,p) in enumerate(zip(ranges, bins))
             )
             st.markdown(
                 "<div style='border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;margin-bottom:8px;'>"
@@ -604,21 +700,29 @@ with tab1:
                 unsafe_allow_html=True
             )
 
-        # SIP Amount Analysis — clean table, worst=red, best=green
+        # Amount analysis uses the actual redemption value, worst=red, best=green
         if sip_amount_r:
-            st.markdown("""
-            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        padding: 10px; border-radius: 5px; text-align: center;
-                        margin-top: 20px; margin-bottom: 0px;'>
-                <b style='color: white; font-size: 16px;'>&#x1F4B0; {yr}-Year SIP Amount Analysis &mdash; &#x20B9;{amt:,}/month</b>
-            </div>
-            """.format(yr=years_r, amt=sip_amount_r), unsafe_allow_html=True)
-
-            months    = years_r * 12
-            invested  = sip_amount_r * months
-            fv_series = result_df['XIRR %'].apply(
-                lambda v: round(xirr_to_fv(v, months, sip_amount_r), 0)
+            if is_lump:
+                invested = sip_amount_r
+                amount_title = (
+                    f"&#x1F4B0; {years_r}-Year Lump Sum Amount Analysis "
+                    f"&mdash; &#x20B9;{sip_amount_r:,}"
+                )
+            else:
+                invested = sip_amount_r * years_r * 12
+                amount_title = (
+                    f"&#x1F4B0; {years_r}-Year SIP Amount Analysis "
+                    f"&mdash; &#x20B9;{sip_amount_r:,}/month"
+                )
+            st.markdown(
+                "<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+                "padding: 10px; border-radius: 5px; text-align: center;"
+                "margin-top: 20px; margin-bottom: 0px;'>"
+                f"<b style='color: white; font-size: 16px;'>{amount_title}</b>"
+                "</div>",
+                unsafe_allow_html=True,
             )
+            fv_series = result_df['Final Value']
             labels = ['Invested', 'Worst', '10th %ile', '25th %ile',
                       'Mean', 'Median', '75th %ile', '90th %ile', 'Best']
             values = [
@@ -656,45 +760,54 @@ with tab1:
                 unsafe_allow_html=True
             )
 
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    padding: 10px; border-radius: 5px; text-align: center;
-                    margin-top: 20px; margin-bottom: 10px;'>
-            <b style='color: white; font-size: 16px;'>📊 Rolling XIRR Chart</b>
-        </div>
-        """, unsafe_allow_html=True)
-        fig = plot_rolling_xirr(result_df, fund_name, years_r)
+        chart_banner = "📊 Rolling CAGR Chart" if is_lump else "📊 Rolling XIRR Chart"
+        st.markdown(
+            "<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
+            "padding: 10px; border-radius: 5px; text-align: center;"
+            "margin-top: 20px; margin-bottom: 10px;'>"
+            f"<b style='color: white; font-size: 16px;'>{chart_banner}</b>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        fig = plot_rolling_xirr(result_df, fund_name, years_r, mode="lumpsum" if is_lump else "sip")
         st.pyplot(fig)
         plt.close(fig)
 
         st.markdown("<div style='margin-top: 56px;'></div>", unsafe_allow_html=True)
 
-        # Excel Download
+        # Excel download stays at the bottom.
         df_export = result_df.copy()
-        df_export['Start Date']      = pd.to_datetime(df_export['Start Date']).dt.strftime('%d/%m/%Y')
-        df_export['End Date']        = pd.to_datetime(df_export['End Date']).dt.strftime('%d/%m/%Y')
-        df_export['Redemption Date'] = pd.to_datetime(df_export['Redemption Date']).dt.strftime('%d/%m/%Y')
-
-        # Always add invested/total columns — SIP amount is always present
-        if sip_amount_r:
-            months_xl   = years_r * 12
-            invested_xl = sip_amount_r * months_xl
-            df_export['Invested Amount (\u20b9)'] = invested_xl
-            df_export['Total Amount (₹)']    = result_df['XIRR %'].apply(
-                lambda v: round(xirr_to_fv(v, months_xl, sip_amount_r), 0)
-            )
+        df_export['Start Date'] = pd.to_datetime(df_export['Start Date']).dt.strftime('%d/%m/%Y')
+        df_export['End Date'] = pd.to_datetime(df_export['End Date']).dt.strftime('%d/%m/%Y')
+        if is_lump:
+            df_export['Final Value'] = result_df['Final Value'].round(2)
+            df_export = df_export[
+                ['Start Date', 'End Date', 'Start NAV', 'End NAV', 'CAGR %', 'Final Value']
+            ]
+        else:
+            df_export['Redemption Date'] = pd.to_datetime(df_export['Redemption Date']).dt.strftime('%d/%m/%Y')
+            df_export['Invested Amount (₹)'] = sip_amount_r * years_r * 12
+            df_export['Final Value (₹)'] = result_df['Final Value'].round(0)
+            df_export = df_export[
+                [
+                    'Start Date', 'End Date', 'Redemption Date', 'Instalments', 'XIRR %',
+                    'Invested Amount (₹)', 'Final Value (₹)',
+                ]
+            ]
 
         excel_buf = build_excel(
             df_export, fund_name, years_r,
-            from_date_r, to_date_r, True, sip_amount_r or 0
+            from_date_r, to_date_r, not is_lump, sip_amount_r or 0,
+            mode="lumpsum" if is_lump else "sip",
         )
-        safe_name = fund_name.replace(' ', '_').replace('/', '-')[:50]
+        safe_name = (fund_name or "fund").replace(' ', '_').replace('/', '-')[:50]
+        mode_tag = "LumpSum" if is_lump else "SIP"
         st.download_button(
             label="⬇  Download the complete rolling period calculations for every start date as an Excel file",
             data=excel_buf,
-            file_name=f"rolling_xirr_{safe_name}.xlsx",
+            file_name=f"rolling_xirr_{safe_name}_{mode_tag}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
             type="primary"
         )
 
