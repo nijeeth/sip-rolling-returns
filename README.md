@@ -6,7 +6,7 @@ A Streamlit application for analyzing rolling SIP and lump-sum returns in Indian
 
 Checked on 28 September 2026 against Advisorkhoj and PrimeInvestor. The funds were Aditya Birla SL Large & Mid Cap Regular Growth (scheme 100033), Parag Parikh Flexi Cap Direct (scheme 122639), and HDFC Flexi Cap Regular (scheme 101762). The check used 1-year and 3-year lump sums, with a new start on every trading day.
 
-Averages, medians (the middle value), and the share of periods that lost money match Advisorkhoj within about 0.1 percentage points. That is about 12.0% compared with 12.1%. They match PrimeInvestor within about 0.1 to 0.45 points. The single best period and the single worst period can differ by more.
+Averages, medians (the middle value), and the share of periods that lost money match Advisorkhoj within about 0.1 percentage points. Aditya Birla SL Large & Mid Cap Regular Growth, 1-year rolling, start dates from 3 April 2006 to today, averages 14.63% in this app and 14.63% on Advisorkhoj. They match PrimeInvestor within about 0.1 to 0.45 points. Parag Parikh Flexi Cap Direct Growth, 3-year rolling, sale dates from 24 September 2021 to 24 September 2026, averages 22.85% in this app and 23.26% on PrimeInvestor (about 0.4 points apart). The single best period and the single worst period can differ by more.
 
 The main reason is the sale date. When the anniversary falls on a weekend or a market holiday, this app sells on the next trading day. The money is held for at least the full number of years. Advisorkhoj and PrimeInvestor sell on the last trading day on or before the anniversary.
 
