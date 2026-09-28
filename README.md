@@ -2,7 +2,25 @@
 
 A Streamlit application for analyzing rolling SIP and lump-sum returns in Indian mutual funds. NAV data comes from [mfapi.in](https://www.mfapi.in/).
 
+## Why numbers differ from popular websites
 
+Checked on 28 September 2026 against Advisorkhoj and PrimeInvestor. The funds were Aditya Birla SL Large & Mid Cap Regular Growth (scheme 100033), Parag Parikh Flexi Cap Direct (scheme 122639), and HDFC Flexi Cap Regular (scheme 101762). The check used 1-year and 3-year lump sums, with a new start on every trading day.
+
+Averages, medians (the middle value), and the share of periods that lost money match Advisorkhoj within about 0.1 percentage points. That is about 12.0% compared with 12.1%. They match PrimeInvestor within about 0.1 to 0.45 points. The single best period and the single worst period can differ by more.
+
+The main reason is the sale date. When the anniversary falls on a weekend or a market holiday, this app sells on the next trading day. The money is held for at least the full number of years. Advisorkhoj and PrimeInvestor sell on the last trading day on or before the anniversary.
+
+On a jumpy day, that choice can change one period a lot. Example: a buy in the Aditya Birla fund on 19 January 2007. This app sells on Monday 21 January 2008, for a return of +23.87%. Advisorkhoj sells on Friday 18 January 2008, for a return of +40.66%. These gaps mostly cancel out in the average. They can still move the best and worst numbers.
+
+A smaller difference is how a year is counted. This app divides the real number of days held by 365.25. The websites treat the holding as exactly 1 year, or exactly 3 years, and so on. Their 1-year figure is simply the gain over that span. The effect is very small.
+
+The dates do not mean the same thing on every site. In this app, From is the first buy date. To is the last date a sale is allowed. On Advisorkhoj, the start date is also a buy date, and the check runs to the latest price. On PrimeInvestor, the start date and the end date are sale dates. To match PrimeInvestor, set From to its start date minus the number of years, and set To to its end date. To match Advisorkhoj, set From to its start date and set To to today.
+
+This app can show one fewer period at the very end. That happens when the last anniversary has no price after it yet. For example, the anniversary falls on a weekend just before today.
+
+Prices come from mfapi.in, which passes on AMFI data. On every shared date that was checked, those prices matched Advisorkhoj. mfapi has no prices before about April 2006, so a longer history on another site cannot be matched here. Other sites may use a different data source, or skip a day now and then. That explains the small gaps that are left.
+
+The same sale rule applies to a SIP. If a payment day is closed, the app buys on the next trading day. It sells on the next trading day after the last payment. The SIP percentage uses those real dates. It is not a simple gain from the first price to the last price.
 
 ##### The documentation, UI, code are generated using AI tools ####
 
