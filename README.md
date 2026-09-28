@@ -38,6 +38,7 @@ sip_app/
 ├── logic_notes.docx    # How the returns are calculated
 ├── CHANGELOG.md        # Version history
 ├── WHATS_NEW.md        # Plain-language notes for each version
+├── LICENSE             # MIT License
 └── README.md           # This file
 ```
 
@@ -130,6 +131,10 @@ All defined in `config.py`:
 - `DEFAULT_SIP_AMOUNT = 1000` → Used by `app.py`
 
 This modular design makes it easy to understand, modify, and extend!
+
+## License
+
+This project is under the [MIT License](LICENSE).
 
 ##### The documentation, UI, code are generated using AI tools ####
 

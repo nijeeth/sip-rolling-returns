@@ -15,6 +15,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - A collapsed "What's new" note on the home page, plus `WHATS_NEW.md`.
 - Tests for deep-loss XIRR, the real redemption value, zero NAVs, the To Date, and lump-sum CAGR.
 - A plain-English section, "Why returns are slightly different from popular sites", in the README, the How it works tab, and the calculation notes.
+- The project is released under the MIT License. See `LICENSE`.
 
 ### Fixed
 
