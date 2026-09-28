@@ -14,7 +14,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - A warning on IDCW (dividend) plans, because payouts are not added back.
 - A collapsed "What's new" note on the home page, plus `WHATS_NEW.md`.
 - Tests for deep-loss XIRR, the real redemption value, zero NAVs, the To Date, and lump-sum CAGR.
-- A plain-English section, "Why numbers differ from popular websites", in the README, the How it works tab, and the calculation notes.
+- A plain-English section, "Why returns are slightly different from popular sites", in the README, the How it works tab, and the calculation notes.
 
 ### Fixed
 

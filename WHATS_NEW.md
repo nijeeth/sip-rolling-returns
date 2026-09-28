@@ -18,4 +18,4 @@ A short log of what changed for people using the calculator.
 
 **A few quieter corrections.** A NAV of zero is ignored. If you type ₹1,250 it rounds to ₹1,500. A date range that is too short for a reliable result says so straight away. The back-to-top button is visible again. Yesterday's results disappear if the new calculation is rejected.
 
-**Numbers can differ a little from other websites.** Averages stay very close. One best or worst period can look quite different, because this app sells on the next trading day when an anniversary is a holiday, and some popular sites sell on the previous trading day. The How it works tab has a short example.
+**Why returns are slightly different from popular sites.** Averages stay very close. One best or worst period can look quite different, because this app sells on the next trading day when an anniversary is a holiday, and some popular sites sell on the previous trading day. The How it works tab has a short example.

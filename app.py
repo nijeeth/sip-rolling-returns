@@ -220,7 +220,7 @@ with tab2:
   <a href="#how-to-use">➊ &nbsp;How to Use This Calculator</a>
   <a href="#understanding-results">➋ &nbsp;Understanding the Results</a>
   <a href="#example-interpretation">➌ &nbsp;Example Interpretation</a>
-  <a href="#why-numbers-differ">➍ &nbsp;Why numbers differ from popular websites</a>
+  <a href="#why-returns-differ">➍ &nbsp;Why returns are slightly different from popular sites</a>
   <a href="#calculation-logic">➎ &nbsp;Calculation Logic</a>
 </div>
 <style>
@@ -319,9 +319,9 @@ This gives you a realistic expectation of what might happen in future!
 ---
     """, unsafe_allow_html=True)
 
-    st.markdown('<a id="why-numbers-differ"></a>', unsafe_allow_html=True)
+    st.markdown('<a id="why-returns-differ"></a>', unsafe_allow_html=True)
     st.markdown("""
-## Why numbers differ from popular websites
+## Why returns are slightly different from popular sites
 
 Checked on 28 September 2026 against Advisorkhoj and PrimeInvestor. The funds were Aditya Birla SL Large & Mid Cap Regular Growth (scheme 100033), Parag Parikh Flexi Cap Direct (scheme 122639), and HDFC Flexi Cap Regular (scheme 101762). The check used 1-year and 3-year lump sums, with a new start on every trading day.
 
