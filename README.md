@@ -2,6 +2,8 @@
 
 A Streamlit application for analyzing rolling SIP and lump-sum returns in Indian mutual funds. NAV data comes from [mfapi.in](https://www.mfapi.in/).
 
+Choose a fund in one box. Type at least 4 characters of the name (spaces count) and pick a match from the list on that box. Press Enter to search. The search matches any part of the name and shows up to 30 funds. × clears the choice so you can switch funds.
+
 ## Why returns are slightly different from popular sites
 
 Checked on 28 September 2026 against Advisorkhoj and PrimeInvestor. The funds were Aditya Birla SL Large & Mid Cap Regular Growth (scheme 100033), Parag Parikh Flexi Cap Direct (scheme 122639), and HDFC Flexi Cap Regular (scheme 101762). The check used 1-year and 3-year lump sums, with a new start on every trading day.

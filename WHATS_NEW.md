@@ -2,9 +2,13 @@
 
 A short log of what changed for people using the calculator.
 
-## Version 1.2.1 — 29 September 2026
+## Version 1.2.2 — 29 September 2026
 
-**The calculator opens again.** A startup error that stopped the page from loading is fixed. The calculations are the same.
+- **Returns follow the real buy and sale.** If a date is closed, the app uses the next trading day. Large losses stay in the results. The rupee amount is the sale value (units times the sale price). Averages stay close to other sites. One very good or very bad period can differ, because those sites often sell on the previous trading day. The How it works tab has a short example.
+
+- **Lump sum or SIP.** Leave Lump sum off for a monthly SIP, which starts at ₹1,000. Turn it on for a one-time investment. The first time you turn it on, the amount starts at ₹10,000.
+
+- **One box to choose a fund.** Type a name and pick the fund in that same box. × clears the choice so you can switch. Search starts after 4 characters, and spaces count. A match can be anywhere in the name. The list shows up to 30 funds. Press Enter to search.
 
 ## Version 1.2.0 — 29 September 2026
 

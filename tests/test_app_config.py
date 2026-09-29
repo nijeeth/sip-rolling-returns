@@ -13,4 +13,6 @@ def test_settings_module_is_not_streamlit_config():
     assert app_config.DEFAULT_LUMPSUM_AMOUNT == 10_000
     assert app_config.CREATOR_EMAIL == "nijeethfish@gmail.com"
     assert app_config.DEFAULT_SIP_AMOUNT == 1000
+    assert app_config.MIN_SEARCH_QUERY_LENGTH == 4
+    assert app_config.MAX_SEARCH_RESULTS == 30
     assert not hasattr(streamlit_config, "DEFAULT_LUMPSUM_AMOUNT")
