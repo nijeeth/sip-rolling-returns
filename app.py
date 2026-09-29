@@ -98,8 +98,6 @@ st.markdown("""
         justify-content: center !important;
         padding: 14px 10px !important;
         margin: 0 !important;
-        background: #f3f4f6 !important;
-        color: #1f2937 !important;
         font-size: 1.15rem !important;
         font-weight: 700 !important;
         line-height: 1.25 !important;
@@ -113,30 +111,64 @@ st.markdown("""
         white-space: normal !important;
         text-align: center !important;
     }
+    /* Teal for Home, a related blue for How It Works.
+       Neither repeats the purple title banner. The open tab is filled;
+       the other keeps a pale tint of its own color. */
     [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1) {
         flex: 3 1 0% !important;
         width: 75% !important;
         max-width: 75% !important;
+        background: #ccfbf1 !important;
+        color: #115e59 !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1),
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1) * {
+        color: #115e59 !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1):hover,
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[data-hovered] {
+        background: #99f6e4 !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[data-selected],
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[aria-selected="true"] {
+        background: #0f766e !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[data-selected] *,
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[aria-selected="true"] * {
+        color: #ffffff !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[data-selected]:hover,
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1)[aria-selected="true"]:hover {
+        background: #0d9488 !important;
     }
     [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2) {
         flex: 1 1 0% !important;
         width: 25% !important;
         max-width: 25% !important;
+        background: #e0f2fe !important;
+        color: #0c4a6e !important;
     }
-    [data-testid="stTabs"] [data-testid="stTab"][data-hovered],
-    [data-testid="stTabs"] [data-testid="stTab"]:hover {
-        background: #e5e7eb !important;
-        color: #111827 !important;
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2),
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2) * {
+        color: #0c4a6e !important;
     }
-    [data-testid="stTabs"] [data-testid="stTab"][data-selected],
-    [data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"] {
-        background: #5b46d6 !important;
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2):hover,
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[data-hovered] {
+        background: #bae6fd !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[data-selected],
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[aria-selected="true"] {
+        background: #0369a1 !important;
         color: #ffffff !important;
     }
-    [data-testid="stTabs"] [data-testid="stTab"][data-selected][data-hovered],
-    [data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"]:hover {
-        background: #4c39c4 !important;
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[data-selected] *,
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[aria-selected="true"] * {
         color: #ffffff !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[data-selected]:hover,
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2)[aria-selected="true"]:hover {
+        background: #0284c7 !important;
     }
     [data-testid="stTabs"] [data-testid="stTab"] .react-aria-SelectionIndicator {
         display: none !important;

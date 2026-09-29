@@ -10,7 +10,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Changed
 
 - Support email is `nijeethfish@gmail.com` (footer, README, and the address written into the Excel file).
-- Home and How It Works stretch across the content width, about three quarters and one quarter, with the same icons. The whole tab area is clickable.
+- Home and How It Works stretch across the content width, about three quarters and one quarter, with the same icons. The whole tab area is clickable. Home is teal and How It Works is a related blue, so the tabs do not repeat the purple page heading. The open tab is filled; the other is a pale tint of its own color.
 - Choosing a fund is one search box. Matches are a clickable list (scheme code and name). The fund you click stays highlighted. There is no second "Select Mutual Fund" dropdown.
 - The input form sits in the middle of the page, with a maximum width, instead of hugging the left edge.
 - The "What's new" note has a pale yellow background.

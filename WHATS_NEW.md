@@ -6,7 +6,7 @@ A short log of what changed for people using the calculator.
 
 **The support email is nijeethfish@gmail.com.**
 
-**The two tabs are wide enough to click easily.** Home takes about three quarters of the bar and How It Works the rest. The icons are unchanged.
+**The two tabs are wide enough to click easily.** Home takes about three quarters of the bar and How It Works the rest. Home is teal and How It Works is a related blue, so they do not look like the purple title. The tab you are on is filled in; the other is a pale tint. The icons are unchanged.
 
 **There is one search box for the fund.** Type a few letters, or a scheme code. Matching funds appear as rows you can click. The row you click stays highlighted. There is no second dropdown.
 
