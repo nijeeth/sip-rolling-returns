@@ -5,6 +5,14 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-09-29
+
+### Fixed
+
+- The app no longer crashes on startup with `ImportError` at `from config import ...`. Settings now live in `app_config.py`, so the module name does not collide with Streamlit's own `config` (`streamlit.config`).
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.2.0] - 2026-09-29
 
 ### Changed

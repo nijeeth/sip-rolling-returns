@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 from dateutil.relativedelta import relativedelta
 
-from config import (
+from app_config import (
     DAYS_PER_YEAR,
     MAX_XIRR_ITERATIONS,
     PROGRESS_UPDATE_INTERVAL,

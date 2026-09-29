@@ -31,7 +31,7 @@ The same sale rule applies to a SIP. If a payment day is closed, the app buys on
 ```
 sip_app/
 ├── app.py              # Main Streamlit UI (run this file)
-├── config.py           # All configuration constants
+├── app_config.py       # All configuration constants
 ├── calculations.py     # XIRR, lump-sum CAGR, rolling windows
 ├── data_api.py         # API calls to mfapi.in
 ├── utils.py            # Formatting, validation, chart, Excel
@@ -51,7 +51,7 @@ sip_app/
 - Results display
 - **NO calculation logic** - purely UI
 
-### **config.py** - Configuration
+### **app_config.py** - Configuration
 - All constants in one place
 - Easy to modify settings
 - No logic, just values
@@ -82,19 +82,19 @@ sip_app/
 
 ```
 app.py
-  ├── imports: config, data_api, calculations, utils
+  ├── imports: app_config, data_api, calculations, utils
   └── calls: fetch_nav(), search_funds(), rolling SIP and lump-sum calculations
 
 calculations.py
-  ├── imports: config
-  └── uses: constants from config
+  ├── imports: app_config
+  └── uses: constants from app_config
 
 data_api.py
-  ├── imports: config
+  ├── imports: app_config
   └── uses: API settings, cache settings
 
 utils.py
-  ├── imports: config
+  ├── imports: app_config
   └── uses: formatting constants
 ```
 
@@ -124,7 +124,7 @@ This tool is for educational purposes only. Not financial advice. Mutual fund in
 
 ### Constants Used Throughout
 
-All defined in `config.py`:
+All defined in `app_config.py`:
 - `XIRR_TOLERANCE = 1e-12` → Used by `calculations.py`
 - `CACHE_EXPIRY_DAYS = 1` → Used by `data_api.py`
 - `LAKH_THRESHOLD = 100000` → Used by `utils.py`

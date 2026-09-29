@@ -1,6 +1,10 @@
 """
-Configuration file for SIP Rolling Returns application.
+Settings for the SIP Rolling Returns application.
 All constants and configuration parameters are defined here.
+
+This module is named app_config, not config. Streamlit ships its own
+config module (streamlit.config). A local config.py can be imported in
+its place on Streamlit Cloud and then crash startup with ImportError.
 """
 
 import tempfile

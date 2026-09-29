@@ -16,7 +16,7 @@ from calculations import (
     scale_final_values,
     xirr,
 )
-from config import DAYS_PER_YEAR, MIN_VALID_PERIODS
+from app_config import DAYS_PER_YEAR, MIN_VALID_PERIODS
 from data_api import MfapiError, clean_nav_dataframe, fetch_nav, load_nav, load_search_results
 from utils import round_to_step, validate_inputs
 
