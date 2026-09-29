@@ -49,6 +49,7 @@ AMOUNT_STEP = 500               # SIP and lump-sum amounts round to this step
 MIN_SIP_AMOUNT = 500            # Minimum SIP amount in rupees
 MAX_SIP_AMOUNT = 100_000        # Maximum SIP amount in rupees
 DEFAULT_SIP_AMOUNT = 1000       # Default SIP amount in rupees
+DEFAULT_LUMPSUM_AMOUNT = 10_000  # Default one-time amount when Lump sum is first turned on
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CURRENCY FORMATTING
@@ -79,6 +80,6 @@ RETURN_BINS = [
 APP_TITLE = "SIP Rolling Returns"
 APP_ICON = "📈"
 CREATOR_NAME = "Nijeeth Muniyandi"
-CREATOR_EMAIL = "nijeeth91@gmail.com"
+CREATOR_EMAIL = "nijeethfish@gmail.com"
 DATA_SOURCE_NAME = "mfapi.in"
 DATA_SOURCE_URL = "https://www.mfapi.in/"
