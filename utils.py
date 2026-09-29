@@ -3,6 +3,17 @@ Utility functions for SIP Rolling Returns application.
 Includes formatting, validation, charting, and Excel export functions.
 """
 
+from typing import List, Optional
+
+# Bind picker helpers before pandas or matplotlib import. A circular import
+# during those libraries must not hide fund_option_label.
+from fund_picker import (
+    fund_option_label,
+    fund_search_text,
+    sync_fund_picker_state,
+    unique_fund_matches,
+)
+
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,14 +21,11 @@ import matplotlib.dates as mdates
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from io import BytesIO
-from typing import Optional, List
 
 from app_config import (
     AMOUNT_STEP,
     CRORE_THRESHOLD,
     LAKH_THRESHOLD,
-    MAX_SEARCH_RESULTS,
-    MIN_SEARCH_QUERY_LENGTH,
     MIN_VALID_PERIODS,
     CREATOR_NAME,
     CREATOR_EMAIL,
@@ -30,95 +38,6 @@ def round_to_step(value: float, step: int = AMOUNT_STEP) -> int:
     if step <= 0:
         raise ValueError("step must be positive")
     return int(math.floor(float(value) / step + 0.5)) * step
-
-
-def fund_search_text(text: Optional[str], minimum: int = MIN_SEARCH_QUERY_LENGTH) -> Optional[str]:
-    """Text to send to fund search, or None when the typed value is too short.
-
-    The length check uses the raw text, so spaces count toward ``minimum``.
-    Leading and trailing spaces are removed only after that check. A value
-    that is long enough but empty once those spaces are removed is not searched.
-    """
-    raw = "" if text is None else str(text)
-    if len(raw) < minimum:
-        return None
-    query = raw.strip()
-    return query or None
-
-
-def unique_fund_matches(matches, limit: int = MAX_SEARCH_RESULTS):
-    """Unique (scheme code, scheme name) pairs, capped at ``limit``.
-
-    Returns ``(rows, truncated)``. ``truncated`` is true when another unique
-    fund was left off the list.
-    """
-    rows = []
-    seen = set()
-    truncated = False
-    for fund in matches or []:
-        if not isinstance(fund, dict):
-            continue
-        code = str(fund.get("schemeCode", "")).strip()
-        name = str(fund.get("schemeName", "")).strip()
-        if not code or not name or code in seen:
-            continue
-        if len(rows) >= limit:
-            truncated = True
-            break
-        seen.add(code)
-        rows.append((code, name))
-    return rows, truncated
-
-
-def fund_option_label(code: str, name: str, rows: List[tuple]) -> str:
-    """Menu label. The scheme code is added only when two names match."""
-    if sum(1 for _code, other in rows if other == name) > 1:
-        return f"{name} · {code}"
-    return name
-
-
-def sync_fund_picker_state(
-    raw_query: Optional[str],
-    previous_query: Optional[str],
-    selected_code: Optional[str],
-    selected_name: Optional[str],
-    menu_open: bool,
-) -> dict:
-    """Update selection and the match list after the box text changes.
-
-    Choosing a fund writes that fund's name into the box and closes the list.
-    This keeps the list closed when the box still shows the chosen name, so a
-    later pass does not immediately open it again. Clearing the box drops the
-    scheme code and the name. A different query opens the list once it is long
-    enough to search, including spaces.
-    """
-    raw_query = "" if raw_query is None else str(raw_query)
-    selected_code = selected_code or None
-    selected_name = selected_name or None
-
-    if selected_name and raw_query != selected_name:
-        selected_code = None
-        selected_name = None
-
-    if previous_query is not None and raw_query != previous_query:
-        still_selected = bool(selected_name) and raw_query == selected_name
-        if raw_query == "":
-            menu_open = False
-            selected_code = None
-            selected_name = None
-        elif still_selected:
-            pass
-        elif fund_search_text(raw_query):
-            menu_open = True
-        else:
-            menu_open = False
-
-    return {
-        "selected_code": selected_code,
-        "selected_name": selected_name,
-        "menu_open": menu_open,
-        "previous_query": raw_query,
-    }
 
 
 def is_idcw_plan(fund_name: Optional[str]) -> bool:

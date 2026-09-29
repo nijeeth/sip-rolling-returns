@@ -34,6 +34,7 @@ The same sale rule applies to a SIP. If a payment day is closed, the app buys on
 sip_app/
 ├── app.py              # Main Streamlit UI (run this file)
 ├── app_config.py       # All configuration constants
+├── fund_picker.py      # Fund search box helpers
 ├── calculations.py     # XIRR, lump-sum CAGR, rolling windows
 ├── data_api.py         # API calls to mfapi.in
 ├── utils.py            # Formatting, validation, chart, Excel

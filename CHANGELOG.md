@@ -5,6 +5,14 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-09-29
+
+### Fixed
+
+- The app starts again. Fund picker helpers, including `fund_option_label`, are imported from `fund_picker.py`. `utils.py` re-exports them.
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.2.2] - 2026-09-29
 
 ### Changed
