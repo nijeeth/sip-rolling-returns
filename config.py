@@ -8,16 +8,19 @@ import tempfile
 # ══════════════════════════════════════════════════════════════════════════════
 # XIRR CALCULATION CONSTANTS
 # ══════════════════════════════════════════════════════════════════════════════
-MAX_XIRR_ITERATIONS = 150       # Maximum Newton-Raphson iterations for XIRR convergence
-XIRR_TOLERANCE = 1e-10          # Convergence threshold for XIRR calculation
-XIRR_INITIAL_RATE = 0.08        # Starting guess for XIRR (8% annual return)
-XIRR_VALIDATION_TOLERANCE = 1e-6  # Final validation threshold relative to redemption value
+MAX_XIRR_ITERATIONS = 200       # Maximum bisection steps for the XIRR root
+XIRR_TOLERANCE = 1e-12          # Stop when the rate bracket is narrower than this
+XIRR_RATE_LOW = -0.9999         # Lowest annual rate searched (-99.99%)
+XIRR_RATE_HIGH = 100.0          # Highest annual rate searched (10,000%)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CACHE SETTINGS
 # ══════════════════════════════════════════════════════════════════════════════
-CACHE_EXPIRY_DAYS = 1           # NAV cache validity in days (refresh daily)
+CACHE_EXPIRY_DAYS = 1           # NAV file-cache validity in days (refresh daily)
 CACHE_DIR = tempfile.gettempdir()  # Directory for cache files
+NAV_CACHE_TTL_SECONDS = 86400   # Recheck the NAV file cache at least daily
+SEARCH_CACHE_TTL_SECONDS = 3600 # Short memory cache for fund-name searches
+FUND_LIST_CACHE_TTL_SECONDS = 86400  # Full list, if a caller still requests it
 
 # ══════════════════════════════════════════════════════════════════════════════
 # API SETTINGS
@@ -38,8 +41,9 @@ DAYS_PER_YEAR = 365.25          # Average days per year (accounting for leap yea
 # UI SETTINGS
 # ══════════════════════════════════════════════════════════════════════════════
 PROGRESS_UPDATE_INTERVAL = 50   # Update progress bar every N iterations
-MIN_SEARCH_QUERY_LENGTH = 4     # Minimum characters required for fund search
-MAX_SEARCH_RESULTS = 15         # Maximum search results to display
+MIN_SEARCH_QUERY_LENGTH = 3     # Minimum characters required for fund search
+MAX_SEARCH_RESULTS = 30         # Maximum search results to display
+AMOUNT_STEP = 500               # SIP and lump-sum amounts round to this step
 
 # SIP Amount Limits
 MIN_SIP_AMOUNT = 500            # Minimum SIP amount in rupees

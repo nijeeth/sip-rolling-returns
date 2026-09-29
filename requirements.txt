@@ -1,9 +1,7 @@
-streamlit
-pandas
-numpy
-matplotlib
-requests
-python-dateutil
-openpyxl
-xlsxwriter
-streamlit-searchbox
+streamlit==1.64.0
+pandas==3.0.6
+numpy==2.4.4
+matplotlib==3.11.2
+requests==2.33.1
+python-dateutil==2.9.0.post0
+xlsxwriter==3.2.9

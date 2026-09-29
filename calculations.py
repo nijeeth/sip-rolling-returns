@@ -1,222 +1,422 @@
 """
-Core calculation functions for SIP Rolling Returns analysis.
-This module contains all calculation logic including XIRR, NAV processing, and rolling SIP calculations.
+Core calculation functions for SIP and lump-sum rolling returns.
 """
 
-import pandas as pd
-from io import StringIO
+import math
+from typing import Callable, List, Optional, Sequence, Tuple
+
 import numpy as np
+import pandas as pd
 import streamlit as st
-from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from typing import List, Tuple, Optional
 
 from config import (
-    MAX_XIRR_ITERATIONS,
-    XIRR_TOLERANCE,
-    XIRR_INITIAL_RATE,
-    XIRR_VALIDATION_TOLERANCE,
     DAYS_PER_YEAR,
+    MAX_XIRR_ITERATIONS,
     PROGRESS_UPDATE_INTERVAL,
-    DEFAULT_SIP_AMOUNT
+    XIRR_RATE_HIGH,
+    XIRR_RATE_LOW,
+    XIRR_TOLERANCE,
 )
+from data_api import clean_nav_dataframe
 
 
-def xirr(cashflows: List[float], dates: List[datetime]) -> float:
+def xirr(cashflows: Sequence[float], dates: Sequence) -> float:
     """
-    Calculate Internal Rate of Return using Newton-Raphson method.
-    
-    Args:
-        cashflows: List of cash flow amounts (negative for investments, positive for returns)
-        dates: List of datetime objects corresponding to each cash flow
-    
-    Returns:
-        Annual IRR as a decimal (e.g., 0.12 for 12% return)
-        Returns np.nan if calculation fails to converge
+    Annual internal rate of return for uneven cash flows.
+
+    Uses a bracketed root search (bisection) on [-99.99%, 10,000%].
+    A Newton start at 8% overshoots below -100% on deep losses and then
+    either crashes or returns no result, which used to drop those periods.
+
+    Returns the rate as a decimal (0.12 means 12%), or NaN when the cash
+    flows have no sign change and no rate exists.
     """
-    if len(cashflows) < 2:
+    if len(cashflows) < 2 or len(cashflows) != len(dates):
         return np.nan
 
-    def npv(rate: float) -> float:
-        """Calculate Net Present Value at given rate."""
-        t0 = dates[0]
-        return sum(cf / (1 + rate) ** ((d - t0).days / DAYS_PER_YEAR)
-                   for cf, d in zip(cashflows, dates))
+    has_pos = any(cf > 0 for cf in cashflows)
+    has_neg = any(cf < 0 for cf in cashflows)
+    if not (has_pos and has_neg):
+        return np.nan
 
-    def derivative(rate: float) -> float:
-        """Calculate derivative of NPV with respect to rate."""
-        t0 = dates[0]
+    t0 = pd.Timestamp(dates[0]).normalize()
+    times = [(pd.Timestamp(d).normalize() - t0).days / DAYS_PER_YEAR for d in dates]
+
+    def npv(rate: float) -> float:
+        if rate <= -1.0:
+            return math.nan
+        base = 1.0 + rate
         total = 0.0
-        for cf, d in zip(cashflows, dates):
-            t = (d - t0).days / DAYS_PER_YEAR
-            total -= t * cf / (1 + rate) ** (t + 1)
+        for cf, t in zip(cashflows, times):
+            try:
+                total += cf / base ** t
+            except OverflowError:
+                return math.copysign(math.inf, cf)
         return total
 
-    rate = XIRR_INITIAL_RATE
-    for _ in range(MAX_XIRR_ITERATIONS):
-        drv = derivative(rate)
-        if drv == 0:
+    low = XIRR_RATE_LOW
+    f_low = npv(low)
+    # Pull the lower end up if the power overflows so the bracket stays finite.
+    for _ in range(30):
+        if math.isfinite(f_low):
             break
-        adj = npv(rate) / drv
-        rate -= adj
-        if abs(adj) < XIRR_TOLERANCE:
-            break
+        low = (low + 0.0) / 2.0
+        if low <= -1.0:
+            low = -0.9999
+        f_low = npv(low)
+    if not math.isfinite(f_low):
+        return np.nan
 
-    redemption = abs(cashflows[-1])
-    return rate if abs(npv(rate)) < redemption * XIRR_VALIDATION_TOLERANCE else np.nan
+    high = XIRR_RATE_HIGH
+    f_high = npv(high)
+    if not math.isfinite(f_high):
+        return np.nan
+
+    if f_low == 0.0:
+        return low
+    if abs(npv(0.0)) <= XIRR_TOLERANCE:
+        return 0.0
+    if f_low * f_high > 0.0:
+        return np.nan
+
+    root = _bisect_root(npv, low, high, f_low, f_high, XIRR_TOLERANCE, MAX_XIRR_ITERATIONS)
+    if root is None or not math.isfinite(root) or root <= -1.0:
+        return np.nan
+    return root
+
+
+def _bisect_root(
+    func: Callable[[float], float],
+    low: float,
+    high: float,
+    f_low: float,
+    f_high: float,
+    xtol: float,
+    maxiter: int,
+) -> Optional[float]:
+    """Root of a continuous function on a bracket that changes sign."""
+    for _ in range(maxiter):
+        if abs(high - low) <= xtol:
+            return (low + high) / 2.0
+        mid = (low + high) / 2.0
+        if mid == low or mid == high:
+            return mid
+        f_mid = func(mid)
+        if not math.isfinite(f_mid):
+            return None
+        if f_mid == 0.0:
+            return mid
+        # Keep the half where the sign changes.
+        if f_low * f_mid < 0.0:
+            high, f_high = mid, f_mid
+        else:
+            low, f_low = mid, f_mid
+    return (low + high) / 2.0
+
+
+def lump_sum_cagr(start_nav: float, end_nav: float, start_date, end_date) -> float:
+    """
+    CAGR between two NAV dates.
+
+    years_exact is the actual number of days between the NAV dates divided by
+    365.25, the same year length used for XIRR.
+    """
+    if start_nav <= 0 or end_nav <= 0:
+        return np.nan
+    days = (pd.Timestamp(end_date).normalize() - pd.Timestamp(start_date).normalize()).days
+    if days <= 0:
+        return np.nan
+    years_exact = days / DAYS_PER_YEAR
+    return (end_nav / start_nav) ** (1.0 / years_exact) - 1.0
 
 
 def build_nav_arrays(nav_df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Convert NAV DataFrame to numpy arrays for fast lookups.
-    
-    Args:
-        nav_df: DataFrame with 'date' and 'nav' columns
-    
-    Returns:
-        Tuple of (date_array, nav_array) as numpy arrays
-    """
-    return (nav_df['date'].values.astype('datetime64[ns]'),
-            nav_df['nav'].values)
+    """Convert a cleaned NAV frame into sorted numpy arrays."""
+    return (
+        nav_df["date"].values.astype("datetime64[ns]"),
+        nav_df["nav"].values.astype(float),
+    )
 
 
-def get_next_nav_fast(nav_dates: np.ndarray, nav_vals: np.ndarray, 
-                      target: datetime) -> Tuple[Optional[pd.Timestamp], Optional[float]]:
+def get_next_nav_fast(
+    nav_dates: np.ndarray, nav_vals: np.ndarray, target
+) -> Tuple[Optional[pd.Timestamp], Optional[float]]:
     """
-    Find the next available NAV on or after the target date using binary search.
-    
-    Args:
-        nav_dates: Sorted numpy array of dates
-        nav_vals: Numpy array of NAV values corresponding to nav_dates
-        target: Target date to search from
-    
-    Returns:
-        Tuple of (nav_date, nav_value) or (None, None) if not found
+    Next available NAV on or after the target date.
+
+    Returns (None, None) when every NAV is before the target.
     """
-    idx = np.searchsorted(nav_dates, np.datetime64(target, 'ns'), side='left')
+    idx = np.searchsorted(nav_dates, np.datetime64(pd.Timestamp(target), "ns"), side="left")
     if idx >= len(nav_dates):
         return None, None
-    return pd.Timestamp(nav_dates[idx]), nav_vals[idx]
+    return pd.Timestamp(nav_dates[idx]), float(nav_vals[idx])
 
 
-@st.cache_data(show_spinner=False)
-def calculate_all_possible_rolling_sip(nav_df_json: str, years: int, range_start: pd.Timestamp, 
-                                      range_end: pd.Timestamp, sip_amount: int = DEFAULT_SIP_AMOUNT) -> pd.DataFrame:
+def _prepare_nav(nav_df: pd.DataFrame) -> pd.DataFrame:
+    cleaned = clean_nav_dataframe(nav_df)
+    if cleaned.empty:
+        return cleaned
+    return cleaned.sort_values("date").reset_index(drop=True)
+
+
+def _progress(on_progress, i: int, n: int) -> None:
+    if on_progress is None or n <= 0 or i % PROGRESS_UPDATE_INTERVAL != 0:
+        return
+    on_progress(i / n, f"Calculating... {int(i / n * 100)}%")
+
+
+def calculate_rolling_sip(
+    nav_df: pd.DataFrame,
+    years: int,
+    range_start,
+    range_end,
+    on_progress: Optional[Callable[[float, str], None]] = None,
+) -> pd.DataFrame:
     """
-    Calculate rolling SIP returns for all possible start dates in the given range.
-    
-    Args:
-        nav_df_json: NAV DataFrame serialized as JSON
-        years: Rolling period in years
-        range_start: Earliest possible SIP start date
-        range_end: Latest possible SIP start date
-        sip_amount: Monthly SIP investment amount in rupees
-    
-    Returns:
-        DataFrame with columns: Start Date, End Date, Redemption Date, Instalments, XIRR %
-        Returns empty DataFrame if insufficient data
-    """
-    nav_df = pd.read_json(StringIO(nav_df_json))
-    nav_df['date'] = pd.to_datetime(nav_df['date'])
+    Rolling SIP results for every valid start date.
 
+    Final Value is the redemption proceeds of a ₹1 monthly SIP (units × redemption NAV).
+    Multiply by the rupee SIP amount to get the investor's amount. XIRR does not
+    depend on the SIP amount, so the amount is applied after this function.
+    """
+    nav_df = _prepare_nav(nav_df)
     if nav_df.empty:
         return pd.DataFrame()
 
-    nav_df = nav_df.sort_values('date').reset_index(drop=True)
+    range_start = pd.Timestamp(range_start).normalize()
+    range_end = pd.Timestamp(range_end).normalize()
     months_target = years * 12
     nav_dates, nav_vals = build_nav_arrays(nav_df)
 
     snapped_start, _ = get_next_nav_fast(nav_dates, nav_vals, range_start)
-    if snapped_start is None:
+    if snapped_start is None or snapped_start > range_end:
         return pd.DataFrame()
 
-    max_start = range_end - relativedelta(months=months_target - 1)
+    # Month subtraction clips day-of-month (31 May minus 11 months from 30 April
+    # becomes 30 May). Keep a few extra days and accept or reject each start
+    # from its real instalment and redemption dates.
+    nominal_max = range_end - relativedelta(months=months_target - 1)
+    max_start = nominal_max + relativedelta(days=3)
 
     start_candidates = nav_df[
-        (nav_df['date'] >= snapped_start) &
-        (nav_df['date'] <= max_start)
-    ]['date'].reset_index(drop=True)
+        (nav_df["date"] >= snapped_start) & (nav_df["date"] <= max_start)
+    ]["date"].reset_index(drop=True)
 
     results = []
     n = len(start_candidates)
-    progress = st.progress(0, text="Calculating rolling periods...")
+    unit_amount = 1.0
 
     for i, start_date in enumerate(start_candidates, 1):
-        cashflows    = []
-        invest_dates = []
-        units        = 0.0
+        start_date = pd.Timestamp(start_date)
+        if start_date > range_end:
+            _progress(on_progress, i, n)
+            continue
+
+        cashflows: List[float] = []
+        invest_dates: List[pd.Timestamp] = []
+        units = 0.0
 
         _, first_nav_val = get_next_nav_fast(nav_dates, nav_vals, start_date)
-        units += sip_amount / first_nav_val
-        cashflows.append(-sip_amount)
+        if first_nav_val is None or first_nav_val <= 0:
+            _progress(on_progress, i, n)
+            continue
+        units += unit_amount / first_nav_val
+        cashflows.append(-unit_amount)
         invest_dates.append(start_date)
 
+        complete = True
         for m in range(1, months_target):
             scheduled = start_date + relativedelta(months=m)
-            nav_date, nav_val = get_next_nav_fast(nav_dates, nav_vals, scheduled)
-            if nav_date is None:
+            if pd.Timestamp(scheduled) > range_end:
+                complete = False
                 break
-            units += sip_amount / nav_val
-            cashflows.append(-sip_amount)
+            nav_date, nav_val = get_next_nav_fast(nav_dates, nav_vals, scheduled)
+            if nav_date is None or nav_date > range_end or nav_val is None or nav_val <= 0:
+                complete = False
+                break
+            units += unit_amount / nav_val
+            cashflows.append(-unit_amount)
             invest_dates.append(nav_date)
 
-        if len(cashflows) != months_target:
-            if i % PROGRESS_UPDATE_INTERVAL == 0:
-                progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
+        if not complete or len(cashflows) != months_target:
+            _progress(on_progress, i, n)
             continue
 
         last_date = invest_dates[-1]
-
         redeem_date, redeem_nav = get_next_nav_fast(
-            nav_dates, nav_vals, last_date + relativedelta(days=1)
+            nav_dates, nav_vals, last_date + pd.Timedelta(days=1)
         )
-        if redeem_date is None:
-            if i % PROGRESS_UPDATE_INTERVAL == 0:
-                progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
+        if (
+            redeem_date is None
+            or redeem_date > range_end
+            or redeem_nav is None
+            or redeem_nav <= 0
+        ):
+            _progress(on_progress, i, n)
             continue
 
         final_value = units * redeem_nav
         cashflows.append(final_value)
         invest_dates.append(redeem_date)
 
-        irr_val = xirr(cashflows, invest_dates)
-        if np.isnan(irr_val):
-            if i % PROGRESS_UPDATE_INTERVAL == 0:
-                progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
+        try:
+            irr_val = xirr(cashflows, invest_dates)
+        except (OverflowError, ValueError, ZeroDivisionError, FloatingPointError):
+            irr_val = np.nan
+        if irr_val is None or not np.isfinite(irr_val):
+            _progress(on_progress, i, n)
             continue
 
-        results.append({
-            'Start Date':      start_date.date(),
-            'End Date':        last_date.date(),
-            'Redemption Date': redeem_date.date(),
-            'Instalments':     months_target,
-            'XIRR %':          round(irr_val * 100, 2)
-        })
-
-        if i % PROGRESS_UPDATE_INTERVAL == 0:
-            progress.progress(i / n, text=f"Calculating... {int(i/n*100)}%")
-
-    progress.empty()
+        results.append(
+            {
+                "Start Date": start_date.date(),
+                "End Date": last_date.date(),
+                "Redemption Date": redeem_date.date(),
+                "Instalments": months_target,
+                "XIRR %": round(float(irr_val) * 100, 2),
+                "Final Value": float(final_value),
+            }
+        )
+        _progress(on_progress, i, n)
 
     if not results:
         return pd.DataFrame()
+    return pd.DataFrame(results).sort_values("Start Date").reset_index(drop=True)
 
-    return pd.DataFrame(results).sort_values('Start Date').reset_index(drop=True)
 
-
-def xirr_to_fv(xirr_pct: float, n_months: int, amount: float) -> float:
+def calculate_rolling_lumpsum(
+    nav_df: pd.DataFrame,
+    years: int,
+    range_start,
+    range_end,
+    on_progress: Optional[Callable[[float, str], None]] = None,
+) -> pd.DataFrame:
     """
-    Convert XIRR percentage to future value of SIP.
-    
-    Args:
-        xirr_pct: XIRR as a percentage (e.g., 12.5 for 12.5%)
-        n_months: Number of monthly installments
-        amount: Monthly SIP amount
-    
-    Returns:
-        Future value of the SIP
+    Rolling lump-sum results for every valid start date.
+
+    Invest once on the start NAV. Redeem on the first NAV on or after
+    start + N calendar years, and only when that date is on or before the
+    To Date. Final Value is the redemption proceeds of a ₹1 investment.
+    CAGR uses the actual day count between the two NAV dates / 365.25.
     """
-    r = xirr_pct / 100 / 12  # Convert annual XIRR to monthly rate
-    if abs(r) < 1e-9:
-        return amount * n_months
-    return amount * (((1 + r) ** n_months - 1) / r) * (1 + r)
+    nav_df = _prepare_nav(nav_df)
+    if nav_df.empty:
+        return pd.DataFrame()
+
+    range_start = pd.Timestamp(range_start).normalize()
+    range_end = pd.Timestamp(range_end).normalize()
+    nav_dates, nav_vals = build_nav_arrays(nav_df)
+
+    snapped_start, _ = get_next_nav_fast(nav_dates, nav_vals, range_start)
+    if snapped_start is None or snapped_start > range_end:
+        return pd.DataFrame()
+
+    nominal_max = range_end - relativedelta(years=years)
+    max_start = nominal_max + relativedelta(days=3)
+    start_candidates = nav_df[
+        (nav_df["date"] >= snapped_start) & (nav_df["date"] <= max_start)
+    ]["date"].reset_index(drop=True)
+
+    nav_lookup = dict(zip(nav_df["date"], nav_df["nav"].astype(float)))
+    results = []
+    n = len(start_candidates)
+
+    for i, start_date in enumerate(start_candidates, 1):
+        start_date = pd.Timestamp(start_date)
+        start_nav = float(nav_lookup.get(start_date, np.nan))
+        if not np.isfinite(start_nav) or start_nav <= 0:
+            _progress(on_progress, i, n)
+            continue
+
+        target = start_date + relativedelta(years=years)
+        end_date, end_nav = get_next_nav_fast(nav_dates, nav_vals, target)
+        if end_date is None or end_date > range_end or end_nav is None or end_nav <= 0:
+            _progress(on_progress, i, n)
+            continue
+
+        cagr = lump_sum_cagr(start_nav, end_nav, start_date, end_date)
+        if not np.isfinite(cagr):
+            _progress(on_progress, i, n)
+            continue
+
+        results.append(
+            {
+                "Start Date": start_date.date(),
+                "End Date": end_date.date(),
+                "Start NAV": start_nav,
+                "End NAV": end_nav,
+                "CAGR %": round(float(cagr) * 100, 2),
+                "Final Value": float(end_nav / start_nav),
+            }
+        )
+        _progress(on_progress, i, n)
+
+    if not results:
+        return pd.DataFrame()
+    return pd.DataFrame(results).sort_values("Start Date").reset_index(drop=True)
+
+
+def scale_final_values(result_df: pd.DataFrame, amount: float) -> pd.DataFrame:
+    """Scale per-rupee final values to the investor's SIP or lump-sum amount."""
+    if result_df is None or result_df.empty:
+        return result_df
+    scaled = result_df.copy()
+    scaled["Final Value"] = scaled["Final Value"] * float(amount)
+    return scaled
+
+
+def _nav_json_to_df(nav_df_json: str) -> pd.DataFrame:
+    from io import StringIO
+
+    nav_df = pd.read_json(StringIO(nav_df_json))
+    return clean_nav_dataframe(nav_df)
+
+
+@st.cache_data(show_spinner=False)
+def calculate_all_possible_rolling_sip(
+    nav_df_json: str,
+    years: int,
+    range_start: pd.Timestamp,
+    range_end: pd.Timestamp,
+) -> pd.DataFrame:
+    """
+    Cached rolling SIP calculation.
+
+    The SIP amount is not part of the cache key: XIRR does not depend on it.
+    Scale ``Final Value`` with ``scale_final_values``.
+    """
+    nav_df = _nav_json_to_df(nav_df_json)
+    progress = st.progress(0, text="Calculating rolling periods...")
+    try:
+        return calculate_rolling_sip(
+            nav_df,
+            years,
+            range_start,
+            range_end,
+            on_progress=lambda frac, text: progress.progress(frac, text=text),
+        )
+    finally:
+        progress.empty()
+
+
+@st.cache_data(show_spinner=False)
+def calculate_all_possible_rolling_lumpsum(
+    nav_df_json: str,
+    years: int,
+    range_start: pd.Timestamp,
+    range_end: pd.Timestamp,
+) -> pd.DataFrame:
+    """Cached rolling lump-sum calculation. Final Value is per rupee invested."""
+    nav_df = _nav_json_to_df(nav_df_json)
+    progress = st.progress(0, text="Calculating rolling periods...")
+    try:
+        return calculate_rolling_lumpsum(
+            nav_df,
+            years,
+            range_start,
+            range_end,
+            on_progress=lambda frac, text: progress.progress(frac, text=text),
+        )
+    finally:
+        progress.empty()

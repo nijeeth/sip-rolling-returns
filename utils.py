@@ -3,14 +3,17 @@ Utility functions for SIP Rolling Returns application.
 Includes formatting, validation, charting, and Excel export functions.
 """
 
+import math
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
 from io import BytesIO
 from typing import Optional, List
 
 from config import (
+    AMOUNT_STEP,
     CRORE_THRESHOLD,
     LAKH_THRESHOLD,
     MIN_VALID_PERIODS,
@@ -18,6 +21,21 @@ from config import (
     CREATOR_EMAIL,
     DATA_SOURCE_URL
 )
+
+
+def round_to_step(value: float, step: int = AMOUNT_STEP) -> int:
+    """Round half up to the nearest multiple of ``step`` (1250 → 1500 when step is 500)."""
+    if step <= 0:
+        raise ValueError("step must be positive")
+    return int(math.floor(float(value) / step + 0.5)) * step
+
+
+def is_idcw_plan(fund_name: Optional[str]) -> bool:
+    """True for dividend / IDCW plans, whose NAV drop is not offset by reinvestment here."""
+    if not fund_name:
+        return False
+    upper = fund_name.upper()
+    return "IDCW" in upper or "DIVIDEND" in upper
 
 
 def format_date(dt: Optional[datetime]) -> str:
@@ -88,15 +106,26 @@ def validate_inputs(selected_fund_code: Optional[str], from_date: Optional[date]
     if from_date >= to_date:
         errors.append("From date must be before To date.")
     
-    # 4. Date range vs rolling period validation
-    range_months = (to_date.year - from_date.year) * 12 + (to_date.month - from_date.month)
-    needed_months = years * 12
-    if range_months < needed_months:
+    # 4. Date range vs rolling period, using the real calendar (not just year and month).
+    period_end = from_date + relativedelta(years=years)
+    if to_date < period_end:
         errors.append(
             f"Selected date range is less than the selected rolling period "
             f"({years} year{'s' if years > 1 else ''}). "
             f"Please extend the time period."
         )
+    else:
+        # Start dates can only run from From Date until about To Date minus the
+        # rolling period. If even a NAV on every calendar day could not produce
+        # enough periods, say so here instead of failing later with a vague message.
+        window_days = (to_date - period_end).days
+        if window_days + 1 < MIN_VALID_PERIODS:
+            errors.append(
+                f"This date range is too short to produce at least {MIN_VALID_PERIODS} "
+                f"rolling periods. A {years}-year window needs extra room beyond the "
+                f"rolling period itself so many start dates can be tested. "
+                f"Please extend the date range."
+            )
     
     # 5. NAV availability validation (if NAV data provided)
     if nav_df is not None and not nav_df.empty:
@@ -116,24 +145,34 @@ def validate_inputs(selected_fund_code: Optional[str], from_date: Optional[date]
     return errors
 
 
-def plot_rolling_xirr(df: pd.DataFrame, scheme_name: str, years: int) -> plt.Figure:
+def plot_rolling_xirr(df: pd.DataFrame, scheme_name: str, years: int,
+                      mode: str = "sip") -> plt.Figure:
     """
-    Create a chart showing rolling XIRR over time.
+    Create a chart showing rolling XIRR or lump-sum CAGR over time.
     
     Args:
-        df: DataFrame with 'Start Date' and 'XIRR %' columns
+        df: DataFrame with 'Start Date' and 'XIRR %' or 'CAGR %'
         scheme_name: Name of the mutual fund scheme
         years: Rolling period in years
+        mode: "sip" or "lumpsum"
     
     Returns:
         Matplotlib Figure object
     """
+    is_lump = mode == "lumpsum"
+    y_col = "CAGR %" if is_lump else "XIRR %"
+    series_label = "CAGR %" if is_lump else "XIRR %"
+    title = (f'{scheme_name}  |  {years}-Year Rolling CAGR'
+             if is_lump else f'{scheme_name}  |  {years}-Year Rolling SIP XIRR')
+    xlabel = "Start Date" if is_lump else "SIP Start Date"
+    ylabel = "CAGR (%)" if is_lump else "XIRR (%)"
+
     fig, ax = plt.subplots(figsize=(8, 2.5))
     x = pd.to_datetime(df['Start Date'])
-    y = df['XIRR %']
+    y = df[y_col]
 
     ax.fill_between(x, y, alpha=0.15, color='steelblue')
-    ax.plot(x, y, color='steelblue', linewidth=1.2, label='XIRR %')
+    ax.plot(x, y, color='steelblue', linewidth=1.2, label=series_label)
 
     mean_val = y.mean()
     ax.axhline(mean_val, color='darkorange', linewidth=1.4,
@@ -141,10 +180,9 @@ def plot_rolling_xirr(df: pd.DataFrame, scheme_name: str, years: int) -> plt.Fig
     ax.axhline(0, color='red', linewidth=0.8, linestyle=':')
 
     # Reduced font sizes to match body text
-    ax.set_title(f'{scheme_name}  |  {years}-Year Rolling SIP XIRR',
-                 fontsize=11, fontweight='normal', pad=10)
-    ax.set_xlabel('SIP Start Date', fontsize=10)
-    ax.set_ylabel('XIRR (%)', fontsize=10)
+    ax.set_title(title, fontsize=11, fontweight='normal', pad=10)
+    ax.set_xlabel(xlabel, fontsize=10)
+    ax.set_ylabel(ylabel, fontsize=10)
     ax.tick_params(axis='both', which='major', labelsize=9)
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
     ax.xaxis.set_major_locator(mdates.AutoDateLocator())
@@ -157,7 +195,7 @@ def plot_rolling_xirr(df: pd.DataFrame, scheme_name: str, years: int) -> plt.Fig
 
 def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int, 
                 from_date: date, to_date: date, sip_enabled: bool, 
-                sip_amount: int) -> BytesIO:
+                sip_amount: int, mode: str = "sip") -> BytesIO:
     """
     Build an Excel file with formatted rolling returns data.
     
@@ -167,22 +205,27 @@ def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int,
         years: Rolling period in years
         from_date: Start date of analysis range
         to_date: End date of analysis range
-        sip_enabled: Whether SIP amount analysis is enabled
-        sip_amount: Monthly SIP amount (if enabled)
+        sip_enabled: Whether an invested amount is included (SIP export)
+        sip_amount: Monthly SIP amount, or the lump-sum amount
+        mode: "sip" or "lumpsum"
     
     Returns:
         BytesIO buffer containing the Excel file
     """
     buf = BytesIO()
+    is_lump = mode == "lumpsum"
+    sheet_name = "Rolling CAGR" if is_lump else "Rolling XIRR"
+    title = (f"{years}-Year Rolling Return" if is_lump
+             else f"{years}-Year SIP Rolling Return")
     with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
         gen_date = datetime.now().strftime('%d/%m/%Y %H:%M')
         from_str = from_date.strftime('%d/%m/%Y')
         to_str   = to_date.strftime('%d/%m/%Y')
 
         df_export.to_excel(writer, index=False,
-                           sheet_name='Rolling XIRR', startrow=18)
+                           sheet_name=sheet_name, startrow=18)
         wb = writer.book
-        ws = writer.sheets['Rolling XIRR']
+        ws = writer.sheets[sheet_name]
 
         def mf(opts): return wb.add_format(opts)
 
@@ -194,7 +237,9 @@ def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int,
         ws.set_column(2, 2, 20)
         ws.set_column(3, 3, 14)
         ws.set_column(4, 4, 12)
-        if sip_enabled:
+        if is_lump:
+            ws.set_column(5, 5, 18)
+        elif sip_enabled:
             ws.set_column(5, 5, 22)
             ws.set_column(6, 6, 22)
         else:
@@ -213,7 +258,7 @@ def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int,
         fmt_sep     = mf({'bg_color':'#90A4AE','border':0})
         fmt_blank   = mf({'bg_color':'#E3F2FD','border':0})
 
-        ws.merge_range(0, 0, 0, NC, f'{years}-Year SIP Rolling Return', fmt_h1)
+        ws.merge_range(0, 0, 0, NC, title, fmt_h1)
         ws.set_row(0, 26)
         ws.write(1, 0, 'Fund Name:', fmt_lbl)
         ws.merge_range(1, 1, 1, NC, scheme_name, fmt_meta)
@@ -226,7 +271,13 @@ def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int,
         ws.write(2, 5, to_str, fmt_meta)
         for c in range(6, NC+1): ws.write(2, c, '', fmt_blank)
         ws.set_row(2, 20)
-        if sip_enabled:
+        if is_lump:
+            ws.write(3, 0, 'Lump Sum Amount:', fmt_lbl)
+            ws.write(3, 1, f'₹{sip_amount:,}', fmt_meta)
+            ws.write(3, 2, 'Invested:', fmt_lbl)
+            ws.write(3, 3, f'₹{sip_amount:,}', fmt_meta)
+            for c in range(4, NC+1): ws.write(3, c, '', fmt_blank)
+        elif sip_enabled:
             ws.write(3, 0, 'SIP Amount:', fmt_lbl)
             ws.write(3, 1, f'₹{sip_amount:,}/month', fmt_meta)
             ws.write(3, 2, 'Total Invested:', fmt_lbl)
