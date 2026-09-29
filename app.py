@@ -36,6 +36,10 @@ from utils import (
     fmt_inr,
     round_to_step,
     is_idcw_plan,
+    fund_option_label,
+    fund_search_text,
+    sync_fund_picker_state,
+    unique_fund_matches,
 )
 
 IDCW_WARNING = (
@@ -229,41 +233,144 @@ st.markdown("""
         margin-bottom: 0 !important;
     }
 
-    /* ── Clickable fund rows (no second dropdown) ── */
-    .st-key-fund_matches [data-testid="stButton"] {
-        margin-bottom: 6px;
+    /* ── What's new version line: smaller than a normal page heading ── */
+    .st-key-whats_new_box h2 {
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        line-height: 1.35 !important;
+        letter-spacing: 0 !important;
+        margin-top: 0.1rem !important;
+        margin-bottom: 0.45rem !important;
     }
-    .st-key-fund_matches [data-testid="stButton"] button {
+
+    /* ── One fund box: type, clear, and the list chevron share one border ── */
+    .st-key-fund_combo {
+        border: 1.5px solid #0f766e !important;
+        border-radius: 10px !important;
+        background: #ffffff !important;
+        padding: 0 2px 0 2px !important;
+        align-items: stretch !important;
+        overflow: hidden !important;
+    }
+    .st-key-fund_combo:focus-within {
+        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16) !important;
+    }
+    .st-key-fund_combo [data-testid="stTextInput"] {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+    .st-key-fund_combo [data-testid="stTextInput"] [data-baseweb="input"],
+    .st-key-fund_combo [data-testid="stTextInput"] [data-baseweb="base-input"],
+    .st-key-fund_combo [data-testid="stTextInputRootElement"] {
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    .st-key-fund_combo [data-testid="stTextInput"] input {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    .st-key-fund_combo [data-testid="stTextInputClearButton"] {
+        width: 22px !important;
+        height: 22px !important;
+        min-height: 22px !important;
+        margin-right: 2px !important;
+    }
+    .st-key-fund_chevron {
+        flex: 0 0 42px !important;
+        width: 42px !important;
+        min-width: 42px !important;
+        max-width: 42px !important;
         display: flex !important;
         align-items: center !important;
-        justify-content: flex-start !important;
-        width: 100% !important;
-        text-align: left !important;
-        background: #ffffff !important;
-        color: #1e293b !important;
-        border: 1px solid #d5dbe8 !important;
-        border-radius: 8px !important;
-        font-weight: 500 !important;
+    }
+    .st-key-fund_chevron button {
+        background: transparent !important;
+        border: none !important;
+        border-left: 1px solid #cbd5e1 !important;
+        border-radius: 0 !important;
         box-shadow: none !important;
-        padding: 10px 14px !important;
+        color: transparent !important;
+        min-width: 42px !important;
+        width: 42px !important;
+        min-height: 42px !important;
+        height: 100% !important;
+        padding: 0 !important;
+        position: relative !important;
     }
-    .st-key-fund_matches [data-testid="stButton"] button p,
-    .st-key-fund_matches [data-testid="stButton"] button > div {
-        text-align: left !important;
-        flex: 1 1 auto !important;
+    /* Drawn chevron. The button text stays available to screen readers. */
+    .st-key-fund_chevron button p {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+    }
+    .st-key-fund_chevron button::after {
+        content: "" !important;
+        display: block !important;
+        width: 8px !important;
+        height: 8px !important;
+        border-right: 2px solid #475569 !important;
+        border-bottom: 2px solid #475569 !important;
+        transform: rotate(45deg) !important;
+        margin: -4px auto 0 auto !important;
+    }
+    .st-key-fund_chevron button:hover,
+    .st-key-fund_chevron button:focus {
+        background: #f0fdfa !important;
+        border-left: 1px solid #cbd5e1 !important;
+    }
+    .st-key-fund_chevron button:hover::after,
+    .st-key-fund_chevron button:focus::after {
+        border-right-color: #115e59 !important;
+        border-bottom-color: #115e59 !important;
+    }
+    .st-key-fund_menu {
+        margin-top: 6px !important;
+        border: 1px solid #d5dbe8 !important;
+        border-radius: 10px !important;
+        background: #ffffff !important;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+        max-height: 280px !important;
+        overflow-y: auto !important;
+        padding: 4px !important;
+    }
+    .st-key-fund_menu [data-testid="stButton"] {
         margin: 0 !important;
+    }
+    .st-key-fund_menu button {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        background: transparent !important;
+        border: none !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
+        color: #1e293b !important;
+        font-weight: 500 !important;
+        padding: 8px 10px !important;
+        min-height: 0 !important;
+    }
+    .st-key-fund_menu button p,
+    .st-key-fund_menu button span {
+        text-align: left !important;
         color: #1e293b !important;
     }
-    .st-key-fund_matches [data-testid="stButton"] button::after {
-        content: "○";
-        margin-left: auto !important;
-        color: #94a3b8 !important;
-        font-size: 1.05rem !important;
-    }
-    .st-key-fund_matches [data-testid="stButton"] button:hover {
-        background: #f8fafc !important;
-        border-color: #b7c0d6 !important;
+    .st-key-fund_menu button:hover {
+        background: #f0fdfa !important;
         color: #1e293b !important;
+    }
+    .fund-combo-hint {
+        color: #64748b;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        margin: 8px 2px 0 2px;
     }
 
     /* ── Green Download button ── */
@@ -274,7 +381,7 @@ st.markdown("""
     div[data-testid="stDownloadButton"] > button:hover {
         background: linear-gradient(135deg, #15803d 0%, #166534 100%) !important;
     }
-    /* ── Green Calculate button (not the fund-match rows) ── */
+    /* ── Green Calculate button ── */
     div[data-testid="stButton"] button[kind="primary"],
     div[data-testid="stButton"] button[data-testid="stBaseButton-primary"] {
         background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
@@ -413,8 +520,8 @@ with tab2:
     st.markdown("""
 ## 🧭 How to Use This Calculator
 
-**Step 1 — Search for a Fund**
-Type at least 3 characters of the fund name, or enter the scheme code. Matching funds appear as rows under the search box (scheme code and name). Click a row to select it. The chosen fund stays highlighted. There is no second dropdown. The scheme code is shown next to the name so two funds that share a name are easy to tell apart.
+**Step 1 — Select a fund**
+Use the one box under Select Mutual Fund. Type at least 4 characters of the fund name — spaces count — and pick a fund from the list on that same box. Press Enter to search. The search matches any part of the name and shows up to 30 funds. The × on the right of the box clears the choice so you can switch funds. A scheme code works the same way once it is at least 4 characters. If two funds in the list have the same name, the scheme code is shown beside that name.
 
 **Step 2 — Select Rolling Period**
 Choose 1, 2, 3, 5, 7, or 10 years. This is how long each investment is held.
@@ -607,79 +714,100 @@ def _sync_amount_for_mode(lump_sum_on: bool) -> None:
         st.session_state.saved_sip_amount = st.session_state.sip_amount
 
 
-def _fund_match_rows(matches) -> list:
-    """Up to MAX_SEARCH_RESULTS unique schemes, as (code, name) pairs."""
-    rows = []
-    seen = set()
-    for fund in matches:
-        code = str(fund.get("schemeCode", "")).strip()
-        name = str(fund.get("schemeName", "")).strip()
-        if not code or not name or code in seen:
-            continue
-        seen.add(code)
-        rows.append((code, name))
-        if len(rows) >= MAX_SEARCH_RESULTS:
-            break
-    return rows
+def _toggle_fund_menu() -> None:
+    st.session_state.fund_menu_open = not bool(st.session_state.get("fund_menu_open"))
 
 
+def _choose_fund(code: str, name: str) -> None:
+    """Store the scheme for Calculate and show its name in the same box."""
+    st.session_state.selected_fund_code = code
+    st.session_state.selected_fund_name = name
+    st.session_state.fund_query = name
+    st.session_state.fund_menu_open = False
+
+
+@st.fragment
 def _render_fund_picker():
-    """One search box. Matches are clickable rows; the choice is kept in session state."""
-    st.markdown("#### Select Mutual Fund")
-    fund_query = st.text_input(
-        "Search mutual fund",
-        placeholder=f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters of the fund name, or a scheme code",
-        label_visibility="collapsed",
-        key="fund_query",
-    )
-    selected_code = st.session_state.get("selected_fund_code")
-    selected_name = st.session_state.get("selected_fund_name")
-    query = (fund_query or "").strip()
-    # After a click, keep only that fund on screen until the search text changes.
-    locked = bool(
-        selected_code
-        and selected_name
-        and query
-        and st.session_state.get("selected_fund_query") == query
-    )
+    """One combobox. Type and pick in the same box; × clears the selection.
 
+    The scheme code and name are kept in session state. Calculate reads them
+    on the next full run. Typing stays inside this fragment so the results
+    below are not redrawn on each search.
+
+    The text box commits when the user pauses, and also when they press Enter.
+    Search runs only after MIN_SEARCH_QUERY_LENGTH characters. Spaces count.
+    """
+    st.markdown("#### Select Mutual Fund")
+    synced = sync_fund_picker_state(
+        st.session_state.get("fund_query", "") or "",
+        st.session_state.get("fund_query_seen"),
+        st.session_state.get("selected_fund_code"),
+        st.session_state.get("selected_fund_name"),
+        bool(st.session_state.get("fund_menu_open", False)),
+    )
+    st.session_state.selected_fund_code = synced["selected_code"]
+    st.session_state.selected_fund_name = synced["selected_name"]
+    st.session_state.fund_menu_open = synced["menu_open"]
+    st.session_state.fund_query_seen = synced["previous_query"]
+
+    with st.container(
+        key="fund_combo",
+        horizontal=True,
+        vertical_alignment="center",
+        gap=None,
+        wrap=False,
+    ):
+        st.text_input(
+            "Search mutual fund",
+            placeholder="Type a fund name",
+            label_visibility="collapsed",
+            key="fund_query",
+            type="search",
+            icon="",
+            live="300ms",
+        )
+        st.button(
+            "Show or hide matching funds",
+            key="fund_chevron",
+            type="tertiary",
+            on_click=_toggle_fund_menu,
+        )
+
+    raw_query = st.session_state.get("fund_query", "") or ""
+    query = fund_search_text(raw_query)
+    menu_open = bool(st.session_state.get("fund_menu_open"))
     rows = []
-    if locked:
-        rows = [(selected_code, selected_name)]
-    elif query and len(query) < MIN_SEARCH_QUERY_LENGTH:
-        st.caption(f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search.")
-    elif query:
+    notice = None
+    if menu_open and query:
         try:
             matches = search_funds(query)
         except MfapiError:
             st.error("Could not search funds. Check your connection and try again.")
             matches = None
         if matches is not None:
-            rows = _fund_match_rows(matches)
+            rows, truncated = unique_fund_matches(matches, MAX_SEARCH_RESULTS)
             if not rows:
-                st.caption("No matching funds. Try a different name or scheme code.")
-            elif len(matches) > len(rows):
-                st.caption("Showing the first matches. Type more of the name to narrow the list.")
+                notice = "No matching funds. Try a different name or scheme code."
+            elif truncated:
+                notice = (
+                    f"Showing the first {MAX_SEARCH_RESULTS} matches. "
+                    "Type more of the name to narrow the list."
+                )
+    elif menu_open and raw_query and query is None:
+        notice = (
+            f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search. "
+            "Spaces count."
+        )
 
-    if selected_code and selected_name and all(code != selected_code for code, _name in rows):
-        rows = [(selected_code, selected_name)] + rows
-
-    if selected_code and str(selected_code).isalnum():
-        # Highlight whichever row is selected. The class comes from the button key.
+    selected_code = st.session_state.get("selected_fund_code")
+    if selected_code and str(selected_code).isalnum() and any(code == selected_code for code, _name in rows):
         st.markdown(
             f"""
 <style>
-.st-key-fund_matches .st-key-fund_pick_{selected_code} button,
-.st-key-fund_matches .st-key-fund_pick_{selected_code} button:hover {{
-    background: #e7eeff !important;
-    border-color: #5b6eea !important;
-    color: #1e293b !important;
+.st-key-fund_menu .st-key-fund_opt_{selected_code} button,
+.st-key-fund_menu .st-key-fund_opt_{selected_code} button:hover {{
+    background: #e7f6f3 !important;
     font-weight: 600 !important;
-    box-shadow: inset 3px 0 0 #5b46d6 !important;
-}}
-.st-key-fund_matches .st-key-fund_pick_{selected_code} button::after {{
-    content: "●" !important;
-    color: #3d4ed8 !important;
 }}
 </style>
 """,
@@ -687,24 +815,38 @@ def _render_fund_picker():
         )
 
     if rows:
-        with st.container(key="fund_matches"):
+        with st.container(key="fund_menu"):
             for code, name in rows:
-                if st.button(
-                    f"{code} — {name}",
-                    key=f"fund_pick_{code}",
-                    type="secondary",
+                st.button(
+                    fund_option_label(code, name, rows),
+                    key=f"fund_opt_{code}",
+                    icon=":material/search:",
+                    type="tertiary",
                     width="stretch",
-                    wrap=True,
-                ):
-                    same = (
-                        st.session_state.get("selected_fund_code") == code
-                        and st.session_state.get("selected_fund_query") == query
-                    )
-                    st.session_state.selected_fund_code = code
-                    st.session_state.selected_fund_name = name
-                    st.session_state.selected_fund_query = query
-                    if not same:
-                        st.rerun()
+                    on_click=_choose_fund,
+                    args=(code, name),
+                )
+    if notice:
+        st.caption(notice)
+
+    st.markdown(
+        (
+            f'<p class="fund-combo-hint">ⓘ Matches any part of the name · '
+            f"up to {MAX_SEARCH_RESULTS} results · search after "
+            f"{MIN_SEARCH_QUERY_LENGTH} characters (spaces count). "
+            f"Enter also searches.</p>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+    selected_name = st.session_state.get("selected_fund_name")
+    shown_results_name = (st.session_state.get("results") or {}).get("fund_name")
+    if (
+        selected_name
+        and is_idcw_plan(selected_name)
+        and selected_name != shown_results_name
+    ):
+        st.warning(IDCW_WARNING)
 
     return (
         st.session_state.get("selected_fund_code"),
@@ -726,17 +868,10 @@ with tab1:
                 with st.expander("What's new", expanded=False):
                     st.markdown(_whats_new)
 
-        # Search-as-you-type against mfapi. The full scheme list is tens of
+        # One combobox against mfapi. The full scheme list is tens of
         # thousands of rows and made the page slow, so it is not loaded here.
+        # Scheme code and name stay in session state for Calculate.
         selected_fund_code, selected_fund_name = _render_fund_picker()
-
-        shown_results_name = (st.session_state.get("results") or {}).get("fund_name")
-        if (
-            selected_fund_name
-            and is_idcw_plan(selected_fund_name)
-            and selected_fund_name != shown_results_name
-        ):
-            st.warning(IDCW_WARNING)
 
         st.markdown("#### Analysis Period")
         col_yr, col_from, col_to = st.columns([1, 1.35, 1.35])

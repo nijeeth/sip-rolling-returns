@@ -5,6 +5,15 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-09-29
+
+### Changed
+
+- The fund control is one combobox. Type a name and pick a match in the same box. A small × on the right clears the selection so you can switch funds. Search starts after 4 characters, including spaces (`MIN_SEARCH_QUERY_LENGTH` is 4). Matching still uses the mfapi search (any part of the name). The list is capped at 30 (`MAX_SEARCH_RESULTS`). Enter also runs the search when the text is long enough.
+- The in-app What's new note lists major user-facing behavior: how returns are computed, the Lump sum switch and its defaults, and the fund box. The version line uses a smaller font. The 1.2.1 startup note is recorded only here.
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.2.1] - 2026-09-29
 
 ### Fixed

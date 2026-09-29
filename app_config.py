@@ -45,7 +45,7 @@ DAYS_PER_YEAR = 365.25          # Average days per year (accounting for leap yea
 # UI SETTINGS
 # ══════════════════════════════════════════════════════════════════════════════
 PROGRESS_UPDATE_INTERVAL = 50   # Update progress bar every N iterations
-MIN_SEARCH_QUERY_LENGTH = 3     # Minimum characters required for fund search
+MIN_SEARCH_QUERY_LENGTH = 4     # Characters before fund search runs; spaces count
 MAX_SEARCH_RESULTS = 30         # Maximum search results to display
 AMOUNT_STEP = 500               # SIP and lump-sum amounts round to this step
 
