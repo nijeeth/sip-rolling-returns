@@ -18,8 +18,10 @@ from config import (
     MIN_SIP_AMOUNT,
     MAX_SIP_AMOUNT,
     DEFAULT_SIP_AMOUNT,
+    DEFAULT_LUMPSUM_AMOUNT,
     AMOUNT_STEP,
     MIN_VALID_PERIODS,
+    CREATOR_EMAIL,
 )
 from data_api import MfapiError, fetch_nav, search_funds
 from calculations import (
@@ -39,6 +41,12 @@ from utils import (
 IDCW_WARNING = (
     "This is an IDCW (dividend) plan. Payouts are not reinvested in this calculator, "
     "so the return is lower than the Growth option of the same fund."
+)
+
+# Two short lines. Streamlit renders toggle help as Markdown inside the tooltip.
+LUMP_SUM_HELP = (
+    "To find Rolling Returns of a One Time Lumpsum Investment, turn it ON.\n\n"
+    "To find Rolling Returns of a Regular Monthly SIP, turn it OFF."
 )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -63,38 +71,168 @@ st.markdown("""
 
 
 
-    /* ── Streamlit native tab overrides: clear nav-button style ── */
-    .stTabs [data-baseweb="tab-list"] {
-        background: #1a1f36 !important;
-        border: none !important;
-        border-bottom: 3px solid #667eea !important;
+    /* ── Tabs: full content width, Home ~75% / How It Works ~25% ──
+       Streamlit 1.64 uses React Aria tabs (data-testid="stTab"), not Base Web.
+       The tab element itself stretches, so the whole area is the click target. */
+    [data-testid="stTabs"] {
+        width: 100% !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] {
+        display: flex !important;
+        width: 100% !important;
         gap: 0 !important;
-        justify-content: center !important;
+        background: #eceff3 !important;
         padding: 0 !important;
+        overflow: hidden !important;
     }
-    .stTabs [data-baseweb="tab"] {
-        background: transparent !important;
-        border: none !important;
-        border-radius: 0 !important;
-        color: #a5b4fc !important;
-        font-size: 2.0em !important;
+    [data-testid="stTabs"] [role="tablist"]::after {
+        display: none !important;
+    }
+    [data-testid="stTabs"] [data-testid="stTab"] {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        height: auto !important;
+        min-height: 52px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 14px 10px !important;
+        margin: 0 !important;
+        background: #f3f4f6 !important;
+        color: #1f2937 !important;
+        font-size: 1.15rem !important;
         font-weight: 700 !important;
-        padding: 36px 200px !important;
-        letter-spacing: 0.04em !important;
-        transition: background 0.2s, color 0.2s !important;
+        line-height: 1.25 !important;
+        text-align: center !important;
+        white-space: normal !important;
+        border-radius: 0 !important;
+        border: none !important;
+        cursor: pointer !important;
     }
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(102,126,234,0.15) !important;
+    [data-testid="stTabs"] [data-testid="stTab"] * {
+        white-space: normal !important;
+        text-align: center !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(1) {
+        flex: 3 1 0% !important;
+        width: 75% !important;
+        max-width: 75% !important;
+    }
+    [data-testid="stTabs"] [role="tablist"] > [data-testid="stTab"]:nth-child(2) {
+        flex: 1 1 0% !important;
+        width: 25% !important;
+        max-width: 25% !important;
+    }
+    [data-testid="stTabs"] [data-testid="stTab"][data-hovered],
+    [data-testid="stTabs"] [data-testid="stTab"]:hover {
+        background: #e5e7eb !important;
+        color: #111827 !important;
+    }
+    [data-testid="stTabs"] [data-testid="stTab"][data-selected],
+    [data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"] {
+        background: #5b46d6 !important;
         color: #ffffff !important;
     }
-    .stTabs [aria-selected="true"] {
-        background: rgba(102,126,234,0.2) !important;
+    [data-testid="stTabs"] [data-testid="stTab"][data-selected][data-hovered],
+    [data-testid="stTabs"] [data-testid="stTab"][aria-selected="true"]:hover {
+        background: #4c39c4 !important;
         color: #ffffff !important;
-        border-bottom: 3px solid #a78bfa !important;
     }
-    /* Hide the tab highlight/border bars Streamlit adds */
-    .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
-    .stTabs [data-baseweb="tab-border"]    { display: none !important; }
+    [data-testid="stTabs"] [data-testid="stTab"] .react-aria-SelectionIndicator {
+        display: none !important;
+    }
+
+    /* ── Center the home input block on wide screens ── */
+    .st-key-home_form {
+        width: 100% !important;
+        max-width: 760px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* ── What's new: pale yellow so the note stands out ── */
+    .st-key-whats_new_box [data-testid="stExpander"] details {
+        background: #fff6d4 !important;
+        border: 1px solid #ead98a !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+    }
+    .st-key-whats_new_box [data-testid="stExpander"] summary {
+        background: #fff3c4 !important;
+        color: #1f2937 !important;
+    }
+    .st-key-whats_new_box [data-testid="stExpander"] summary:hover,
+    .st-key-whats_new_box [data-testid="stExpander"] summary:focus-visible {
+        background: #ffeeb0 !important;
+    }
+    .st-key-whats_new_box [data-testid="stExpanderDetails"] {
+        background: #fff8dc !important;
+        border-top-color: #ead98a !important;
+    }
+
+    /* ── Lump-sum help tooltip.
+       Streamlit 1.64 draws the popover as [data-testid="stTooltipContent"]
+       (class stTooltipContent). The "?" is [data-testid="stTooltipIcon"] and
+       is left alone so it still opens the tooltip and does not get its own click handler.
+       Also tried, and kept as fallbacks: div[data-baseweb="tooltip"],
+       [role="tooltip"]. */
+    [data-testid="stTooltipContent"],
+    .stTooltipContent,
+    div[data-baseweb="tooltip"],
+    [role="tooltip"] {
+        background: #fff6d4 !important;
+        background-color: #fff6d4 !important;
+        color: #1f2937 !important;
+        white-space: pre-line !important;
+    }
+    [data-testid="stTooltipContent"] p,
+    .stTooltipContent p,
+    [role="tooltip"] p {
+        color: #1f2937 !important;
+        margin: 0 0 0.55em 0 !important;
+    }
+    [data-testid="stTooltipContent"] p:last-child,
+    .stTooltipContent p:last-child,
+    [role="tooltip"] p:last-child {
+        margin-bottom: 0 !important;
+    }
+
+    /* ── Clickable fund rows (no second dropdown) ── */
+    .st-key-fund_matches [data-testid="stButton"] {
+        margin-bottom: 6px;
+    }
+    .st-key-fund_matches [data-testid="stButton"] button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        text-align: left !important;
+        background: #ffffff !important;
+        color: #1e293b !important;
+        border: 1px solid #d5dbe8 !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        box-shadow: none !important;
+        padding: 10px 14px !important;
+    }
+    .st-key-fund_matches [data-testid="stButton"] button p,
+    .st-key-fund_matches [data-testid="stButton"] button > div {
+        text-align: left !important;
+        flex: 1 1 auto !important;
+        margin: 0 !important;
+        color: #1e293b !important;
+    }
+    .st-key-fund_matches [data-testid="stButton"] button::after {
+        content: "○";
+        margin-left: auto !important;
+        color: #94a3b8 !important;
+        font-size: 1.05rem !important;
+    }
+    .st-key-fund_matches [data-testid="stButton"] button:hover {
+        background: #f8fafc !important;
+        border-color: #b7c0d6 !important;
+        color: #1e293b !important;
+    }
 
     /* ── Green Download button ── */
     div[data-testid="stDownloadButton"] > button {
@@ -104,14 +242,17 @@ st.markdown("""
     div[data-testid="stDownloadButton"] > button:hover {
         background: linear-gradient(135deg, #15803d 0%, #166534 100%) !important;
     }
-    /* ── Green Calculate button ── */
-    div.stButton > button[kind="primary"] {
+    /* ── Green Calculate button (not the fund-match rows) ── */
+    div[data-testid="stButton"] button[kind="primary"],
+    div[data-testid="stButton"] button[data-testid="stBaseButton-primary"] {
         background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
         border-color: #15803d !important;
         color: white !important;
     }
-    div.stButton > button[kind="primary"]:hover {
+    div[data-testid="stButton"] button[kind="primary"]:hover,
+    div[data-testid="stButton"] button[data-testid="stBaseButton-primary"]:hover {
         background: linear-gradient(135deg, #15803d 0%, #166534 100%) !important;
+        color: white !important;
     }
 
     /* ── Remove anchor link icon from markdown headings ── */
@@ -241,7 +382,7 @@ with tab2:
 ## 🧭 How to Use This Calculator
 
 **Step 1 — Search for a Fund**
-Type at least 3 characters of the fund name, or enter the scheme code, then pick the fund from the list. The scheme code is shown next to the name so two funds that share a name are easy to tell apart.
+Type at least 3 characters of the fund name, or enter the scheme code. Matching funds appear as rows under the search box (scheme code and name). Click a row to select it. The chosen fund stays highlighted. There is no second dropdown. The scheme code is shown next to the name so two funds that share a name are easy to tell apart.
 
 **Step 2 — Select Rolling Period**
 Choose 1, 2, 3, 5, 7, or 10 years. This is how long each investment is held.
@@ -253,7 +394,7 @@ Set the From and To dates for your analysis window.
 - Every investment date and the sale date must fall on or before the To Date. If they do not, that start date is left out.
 
 **Step 4 — SIP or Lump sum**
-Leave **Lump sum** off for a monthly SIP. Turn it on to invest a single amount once. The amount box label changes to match. The amount must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
+Leave **Lump sum** off for a regular monthly SIP. Turn it on for a one-time lump-sum investment. The amount box label changes to match. A SIP starts at ₹1,000. A lump sum starts at ₹10,000 the first time you turn the switch on. The amount must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
 
 **Step 5 — Click Calculate**
 The app repeats the investment for every valid start date in your selected range.
@@ -390,147 +531,232 @@ def _latest_whats_new() -> str:
     return "\n".join(lines[start:end]).strip()
 
 
+def _clamp_amount(value) -> int:
+    """Round half up to the ₹ step, then keep the amount inside the allowed range."""
+    rounded = round_to_step(value, AMOUNT_STEP)
+    return max(MIN_SIP_AMOUNT, min(MAX_SIP_AMOUNT, rounded))
+
+
+def _sync_amount_for_mode(lump_sum_on: bool) -> None:
+    """Point the shared amount box at the SIP or lump-sum figure.
+
+    The number input is created later with key ``sip_amount``. Session state for
+    that key is written here, before the widget exists. The first time Lump sum
+    is turned on, the box starts at DEFAULT_LUMPSUM_AMOUNT. After the user has
+    a lump-sum amount, switching away and back restores it. SIP does the same
+    with DEFAULT_SIP_AMOUNT.
+    """
+    if "amount_mode" not in st.session_state:
+        st.session_state.amount_mode = "sip"
+    if "saved_sip_amount" not in st.session_state:
+        st.session_state.saved_sip_amount = DEFAULT_SIP_AMOUNT
+    if "saved_lump_amount" not in st.session_state:
+        st.session_state.saved_lump_amount = None
+    if "sip_amount" not in st.session_state:
+        st.session_state.sip_amount = DEFAULT_SIP_AMOUNT
+
+    new_mode = "lumpsum" if lump_sum_on else "sip"
+    if new_mode != st.session_state.amount_mode:
+        if st.session_state.amount_mode == "sip":
+            st.session_state.saved_sip_amount = _clamp_amount(st.session_state.sip_amount)
+            remembered = st.session_state.saved_lump_amount
+            st.session_state.sip_amount = (
+                DEFAULT_LUMPSUM_AMOUNT if remembered is None else remembered
+            )
+        else:
+            st.session_state.saved_lump_amount = _clamp_amount(st.session_state.sip_amount)
+            st.session_state.sip_amount = st.session_state.saved_sip_amount
+        st.session_state.amount_mode = new_mode
+
+    st.session_state.sip_amount = _clamp_amount(st.session_state.sip_amount)
+    if new_mode == "lumpsum":
+        st.session_state.saved_lump_amount = st.session_state.sip_amount
+    else:
+        st.session_state.saved_sip_amount = st.session_state.sip_amount
+
+
+def _fund_match_rows(matches) -> list:
+    """Up to MAX_SEARCH_RESULTS unique schemes, as (code, name) pairs."""
+    rows = []
+    seen = set()
+    for fund in matches:
+        code = str(fund.get("schemeCode", "")).strip()
+        name = str(fund.get("schemeName", "")).strip()
+        if not code or not name or code in seen:
+            continue
+        seen.add(code)
+        rows.append((code, name))
+        if len(rows) >= MAX_SEARCH_RESULTS:
+            break
+    return rows
+
+
+def _render_fund_picker():
+    """One search box. Matches are clickable rows; the choice is kept in session state."""
+    st.markdown("#### Select Mutual Fund")
+    fund_query = st.text_input(
+        "Search mutual fund",
+        placeholder=f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters of the fund name, or a scheme code",
+        label_visibility="collapsed",
+        key="fund_query",
+    )
+    selected_code = st.session_state.get("selected_fund_code")
+    selected_name = st.session_state.get("selected_fund_name")
+    query = (fund_query or "").strip()
+    # After a click, keep only that fund on screen until the search text changes.
+    locked = bool(
+        selected_code
+        and selected_name
+        and query
+        and st.session_state.get("selected_fund_query") == query
+    )
+
+    rows = []
+    if locked:
+        rows = [(selected_code, selected_name)]
+    elif query and len(query) < MIN_SEARCH_QUERY_LENGTH:
+        st.caption(f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search.")
+    elif query:
+        try:
+            matches = search_funds(query)
+        except MfapiError:
+            st.error("Could not search funds. Check your connection and try again.")
+            matches = None
+        if matches is not None:
+            rows = _fund_match_rows(matches)
+            if not rows:
+                st.caption("No matching funds. Try a different name or scheme code.")
+            elif len(matches) > len(rows):
+                st.caption("Showing the first matches. Type more of the name to narrow the list.")
+
+    if selected_code and selected_name and all(code != selected_code for code, _name in rows):
+        rows = [(selected_code, selected_name)] + rows
+
+    if selected_code and str(selected_code).isalnum():
+        # Highlight whichever row is selected. The class comes from the button key.
+        st.markdown(
+            f"""
+<style>
+.st-key-fund_matches .st-key-fund_pick_{selected_code} button,
+.st-key-fund_matches .st-key-fund_pick_{selected_code} button:hover {{
+    background: #e7eeff !important;
+    border-color: #5b6eea !important;
+    color: #1e293b !important;
+    font-weight: 600 !important;
+    box-shadow: inset 3px 0 0 #5b46d6 !important;
+}}
+.st-key-fund_matches .st-key-fund_pick_{selected_code} button::after {{
+    content: "●" !important;
+    color: #3d4ed8 !important;
+}}
+</style>
+""",
+            unsafe_allow_html=True,
+        )
+
+    if rows:
+        with st.container(key="fund_matches"):
+            for code, name in rows:
+                if st.button(
+                    f"{code} — {name}",
+                    key=f"fund_pick_{code}",
+                    type="secondary",
+                    width="stretch",
+                    wrap=True,
+                ):
+                    same = (
+                        st.session_state.get("selected_fund_code") == code
+                        and st.session_state.get("selected_fund_query") == query
+                    )
+                    st.session_state.selected_fund_code = code
+                    st.session_state.selected_fund_name = name
+                    st.session_state.selected_fund_query = query
+                    if not same:
+                        st.rerun()
+
+    return (
+        st.session_state.get("selected_fund_code"),
+        st.session_state.get("selected_fund_name"),
+    )
+
+
 with tab1:
 
     # ── Session state defaults (persists across reruns) ──────────────────────
     if 'results' not in st.session_state:
         st.session_state.results = None
 
-    _whats_new = _latest_whats_new()
-    if _whats_new:
-        with st.expander("What's new", expanded=False):
-            st.markdown(_whats_new)
+    # Centered input block. Results stay full width below this container.
+    with st.container(key="home_form"):
+        _whats_new = _latest_whats_new()
+        if _whats_new:
+            with st.container(key="whats_new_box"):
+                with st.expander("What's new", expanded=False):
+                    st.markdown(_whats_new)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # INPUT SECTION - IN MAIN AREA (NO SIDEBAR)
-    # ══════════════════════════════════════════════════════════════════════════
+        # Search-as-you-type against mfapi. The full scheme list is tens of
+        # thousands of rows and made the page slow, so it is not loaded here.
+        selected_fund_code, selected_fund_name = _render_fund_picker()
 
-    # Search-as-you-type against mfapi. The full scheme list is tens of
-    # thousands of rows and made the page slow, so it is not loaded here.
-    st.markdown("#### Select Mutual Fund")
+        shown_results_name = (st.session_state.get("results") or {}).get("fund_name")
+        if (
+            selected_fund_name
+            and is_idcw_plan(selected_fund_name)
+            and selected_fund_name != shown_results_name
+        ):
+            st.warning(IDCW_WARNING)
 
-    col_fund, _ = st.columns([3.8, 3])
-    with col_fund:
-        fund_query = st.text_input(
-            "Search mutual fund",
-            placeholder=f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters of the fund name, or a scheme code",
-            label_visibility="collapsed",
-            key="fund_query",
+        st.markdown("#### Analysis Period")
+        col_yr, col_from, col_to = st.columns([1, 1.35, 1.35])
+
+        with col_yr:
+            st.markdown("**Rolling Period**")
+            years = st.selectbox(
+                "Rolling Years", ROLLING_PERIOD_OPTIONS,
+                index=0, label_visibility="collapsed", key="years"
+            )
+
+        with col_from:
+            st.markdown("**From Date**")
+            from_date = st.date_input(
+                "From Date", value=None, format="DD/MM/YYYY",
+                min_value=date(1990, 1, 1), max_value=date(2100, 12, 31),
+                label_visibility="collapsed", key="from_date"
+            )
+
+        with col_to:
+            st.markdown("**To Date**")
+            to_date = st.date_input(
+                "To Date", value=None, format="DD/MM/YYYY",
+                min_value=date(1990, 1, 1), max_value=date(2100, 12, 31),
+                label_visibility="collapsed", key="to_date"
+            )
+
+        lump_sum_on = st.toggle(
+            "Lump sum",
+            value=False,
+            key="lump_sum_mode",
+            help=LUMP_SUM_HELP,
         )
-        selected_fund_code = None
-        selected_fund_name = None
-        query = (fund_query or "").strip()
-        if query and len(query) < MIN_SEARCH_QUERY_LENGTH:
-            st.caption(f"Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search.")
-        elif query:
-            try:
-                matches = search_funds(query)
-            except MfapiError:
-                st.error("Could not search funds. Check your connection and try again.")
-                matches = None
-            if matches is not None:
-                options = []
-                label_to_fund = {}
-                for fund in matches[:MAX_SEARCH_RESULTS]:
-                    code = str(fund.get("schemeCode", "")).strip()
-                    name = str(fund.get("schemeName", "")).strip()
-                    if not code or not name:
-                        continue
-                    label = f"{name} ({code})"
-                    if label in label_to_fund:
-                        continue
-                    label_to_fund[label] = (code, name)
-                    options.append(label)
-                if not options:
-                    st.caption("No matching funds. Try a different name or scheme code.")
-                else:
-                    if len(matches) > len(options):
-                        st.caption("Showing the first matches. Type more of the name to narrow the list.")
-                    chosen_label = st.selectbox(
-                        "Select Mutual Fund",
-                        options=options,
-                        index=None,
-                        placeholder="Select a fund — the scheme code is in the name",
-                        label_visibility="collapsed",
-                        key=f"chosen_fund_{query}",
-                    )
-                    if chosen_label:
-                        selected_fund_code, selected_fund_name = label_to_fund[chosen_label]
-
-    shown_results_name = (st.session_state.get("results") or {}).get("fund_name")
-    if (
-        selected_fund_name
-        and is_idcw_plan(selected_fund_name)
-        and selected_fund_name != shown_results_name
-    ):
-        st.warning(IDCW_WARNING)
-
-    # ── Row: Rolling Period | From Date | To Date — all on one line ──────────
-    # Columns sized just enough for their content; spacer fills the rest.
-    st.markdown("#### Analysis Period")
-    col_yr, col_from, col_to, _ = st.columns([1, 1.4, 1.4, 3])
-
-    with col_yr:
-        st.markdown("**Rolling Period**")
-        years = st.selectbox(
-            "Rolling Years", ROLLING_PERIOD_OPTIONS,
-            index=0, label_visibility="collapsed", key="years"
-        )
-
-    with col_from:
-        st.markdown("**From Date**")
-        from_date = st.date_input(
-            "From Date", value=None, format="DD/MM/YYYY",
-            min_value=date(1990, 1, 1), max_value=date(2100, 12, 31),
-            label_visibility="collapsed", key="from_date"
-        )
-
-    with col_to:
-        st.markdown("**To Date**")
-        to_date = st.date_input(
-            "To Date", value=None, format="DD/MM/YYYY",
-            min_value=date(1990, 1, 1), max_value=date(2100, 12, 31),
-            label_visibility="collapsed", key="to_date"
-        )
-
-    # ── SIP or lump sum amount ───────────────────────────────────────────────
-    lump_sum_on = st.toggle(
-        "Lump sum",
-        value=False,
-        key="lump_sum_mode",
-        help="Turn on to invest once. Leave off for a monthly SIP.",
-    )
-    amount_heading = "Lump sum amount (₹)" if lump_sum_on else "Monthly SIP Amount (₹)"
-    st.markdown(f"#### {amount_heading}")
-    col_sip, col_sip_sp = st.columns([1, 4])
-    with col_sip:
-        # Seed session state on first load only — avoids the "default + session state" conflict
-        if "sip_amount" not in st.session_state:
-            st.session_state["sip_amount"] = DEFAULT_SIP_AMOUNT
-        else:
-            # Round half up to the nearest ₹500 (1,250 → 1,500, not banker's 1,000)
-            _rounded = round_to_step(st.session_state["sip_amount"], AMOUNT_STEP)
-            _rounded = max(MIN_SIP_AMOUNT, min(MAX_SIP_AMOUNT, _rounded))
-            st.session_state["sip_amount"] = _rounded
-
+        # Seed the amount before the number input is created.
+        _sync_amount_for_mode(lump_sum_on)
+        amount_heading = "Lump sum amount (₹)" if lump_sum_on else "Monthly SIP Amount (₹)"
+        st.markdown(f"#### {amount_heading}")
         sip_amount = st.number_input(
             amount_heading,
             min_value=MIN_SIP_AMOUNT,
             max_value=MAX_SIP_AMOUNT,
             step=AMOUNT_STEP,
             label_visibility="collapsed",
-            key="sip_amount"
+            key="sip_amount",
         )
-    # sip_enabled always True now — SIP is a required input
-    sip_enabled = True
 
-    # Action Buttons
-    st.divider()
-    col_btn1, _ = st.columns([1, 4])
-    with col_btn1:
-        calculate_btn = st.button("\u25b6 Calculate Rolling Returns", type="primary", width="stretch")
-
-    st.divider()
+        st.divider()
+        calculate_btn = st.button(
+            "\u25b6 Calculate Rolling Returns",
+            type="primary",
+            width="content",
+        )
     
     # ══════════════════════════════════════════════════════════════════════════
     # RESULTS AREA
@@ -626,7 +852,7 @@ with tab1:
         is_lump = r.get('mode') == 'lumpsum'
         return_col = 'CAGR %' if is_lump else 'XIRR %'
         return_header = 'CAGR %' if is_lump else 'XIRR %'
-        result_kind = 'Rolling Return' if is_lump else 'SIP Rolling Return'
+        result_kind = 'LUMP SUM Rolling Return' if is_lump else 'SIP Rolling Return'
         safe_fund = escape(fund_name or '')
         x = result_df[return_col]
 
@@ -867,8 +1093,8 @@ st.markdown("""
   All outputs should be interpreted with caution and are not guaranteed to be accurate,
   complete, or suitable for investment decision-making.
   For suggestions/feedback:
-  <a href="mailto:nijeeth91@gmail.com"
-     style="color:#1a56db; text-decoration:none;">nijeeth91@gmail.com</a>
+  <a href="mailto:{email}"
+     style="color:#1a56db; text-decoration:none;">{email}</a>
   <br><br>
 
   <span style='color:#b91c1c; font-weight:700;'>&#x26A0; Disclaimer:</span>
@@ -887,4 +1113,4 @@ st.markdown("""
   or official financial authority.
 
 </div>
-""", unsafe_allow_html=True)
+""".format(email=CREATOR_EMAIL), unsafe_allow_html=True)

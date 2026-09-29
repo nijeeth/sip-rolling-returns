@@ -5,6 +5,21 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-29
+
+### Changed
+
+- Support email is `nijeethfish@gmail.com` (footer, README, and the address written into the Excel file).
+- Home and How It Works stretch across the content width, about three quarters and one quarter, with the same icons. The whole tab area is clickable.
+- Choosing a fund is one search box. Matches are a clickable list (scheme code and name). The fund you click stays highlighted. There is no second "Select Mutual Fund" dropdown.
+- The input form sits in the middle of the page, with a maximum width, instead of hugging the left edge.
+- The "What's new" note has a pale yellow background.
+- The Lump sum switch help text says to turn it on for a one-time lump-sum investment and off for a regular monthly SIP. The help tooltip background is light yellow.
+- A lump sum starts at ₹10,000 the first time that mode is turned on. A monthly SIP still starts at ₹1,000. Switching modes restores the amount you last used for that mode.
+- A lump-sum result heading reads "LUMP SUM Rolling Return". A SIP heading still reads "SIP Rolling Return".
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.1.0] - 2026-09-28
 
 ### Added

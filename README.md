@@ -102,7 +102,7 @@ utils.py
 ## 📞 Support
 
 **Created by:** Nijeeth Muniyandi  
-**Email:** nijeeth91@gmail.com  
+**Email:** nijeethfish@gmail.com  
 **Data Source:** [mfapi.in](https://www.mfapi.in/)
 
 ## ⚠️ Disclaimer
@@ -128,7 +128,8 @@ All defined in `config.py`:
 - `XIRR_TOLERANCE = 1e-12` → Used by `calculations.py`
 - `CACHE_EXPIRY_DAYS = 1` → Used by `data_api.py`
 - `LAKH_THRESHOLD = 100000` → Used by `utils.py`
-- `DEFAULT_SIP_AMOUNT = 1000` → Used by `app.py`
+- `DEFAULT_SIP_AMOUNT = 1000` → Used by `app.py` (monthly SIP)
+- `DEFAULT_LUMPSUM_AMOUNT = 10000` → Used by `app.py` (one-time lump sum)
 
 This modular design makes it easy to understand, modify, and extend!
 
