@@ -29,6 +29,12 @@ from calculations import (
     calculate_all_possible_rolling_sip,
     scale_final_values,
 )
+from fund_picker import (
+    fund_option_label,
+    fund_search_text,
+    sync_fund_picker_state,
+    unique_fund_matches,
+)
 from utils import (
     validate_inputs,
     plot_rolling_xirr,
@@ -36,10 +42,6 @@ from utils import (
     fmt_inr,
     round_to_step,
     is_idcw_plan,
-    fund_option_label,
-    fund_search_text,
-    sync_fund_picker_state,
-    unique_fund_matches,
 )
 
 IDCW_WARNING = (
