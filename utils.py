@@ -12,7 +12,7 @@ from dateutil.relativedelta import relativedelta
 from io import BytesIO
 from typing import Optional, List
 
-from config import (
+from app_config import (
     AMOUNT_STEP,
     CRORE_THRESHOLD,
     LAKH_THRESHOLD,

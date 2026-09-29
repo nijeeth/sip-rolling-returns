@@ -14,7 +14,7 @@ import requests
 import streamlit as st
 from datetime import datetime
 
-from config import (
+from app_config import (
     API_BASE_URL,
     CACHE_DIR,
     CACHE_EXPIRY_DAYS,

@@ -2,6 +2,10 @@
 
 A short log of what changed for people using the calculator.
 
+## Version 1.2.1 — 29 September 2026
+
+**The calculator opens again.** A startup error that stopped the page from loading is fixed. The calculations are the same.
+
 ## Version 1.2.0 — 29 September 2026
 
 **The support email is nijeethfish@gmail.com.**

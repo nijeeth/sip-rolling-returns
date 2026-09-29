@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time
 
-from config import (
+from app_config import (
     MIN_SEARCH_QUERY_LENGTH,
     MAX_SEARCH_RESULTS,
     ROLLING_PERIOD_OPTIONS,
