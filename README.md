@@ -133,6 +133,7 @@ All defined in `app_config.py`:
 - `LAKH_THRESHOLD = 100000` → Used by `utils.py`
 - `DEFAULT_SIP_AMOUNT = 10000` → Used by `app.py` (monthly SIP)
 - `DEFAULT_LUMPSUM_AMOUNT = 100000` → Used by `app.py` (one-time lump sum)
+- `ROLLING_PERIOD_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` → Used by `app.py`
 
 This modular design makes it easy to understand, modify, and extend!
 

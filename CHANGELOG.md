@@ -5,6 +5,16 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-10-02
+
+### Changed
+
+- The fund search box and its match list are left-aligned.
+- Rolling period choices are every year from 1 through 10. The control is a short field and its value and options stay right-aligned.
+- Amounts are shown and read with Indian grouping and no decimals (for example ₹10,000 and ₹1,00,000). The value is still rounded to the nearest ₹500 within the existing minimum and maximum.
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.2.4] - 2026-10-02
 
 ### Changed

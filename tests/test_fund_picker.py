@@ -158,11 +158,21 @@ def test_how_it_works_and_readme_describe_the_one_box():
     assert "up to 30 funds" in app
     assert "A SIP starts at ₹10,000" in app
     assert "A lump sum starts at ₹1,00,000" in app
+    assert "Indian grouping" in app
+    assert "from 1 to 10" in app
+    assert "1, 2, 3, 5, 7, or 10" not in app
     assert "sold on the anniversary" in app or "sale is the anniversary" in app
     assert "next trading day after the last payment" not in app
-    menu_rule = app.split(".st-key-fund_menu button {", 1)[1].split("}", 1)[0]
-    assert "text-align: right" in menu_rule
-    assert "flex-end" in menu_rule
+    menu_css = app.split(".st-key-fund_menu {", 1)[1].split(".fund-combo-hint", 1)[0]
+    assert "text-align: left" in menu_css
+    assert "flex-start" in menu_css
+    assert "text-align: right" not in menu_css
+    assert "flex-end" not in menu_css
+    search_input = app.split('.st-key-fund_combo [data-testid="stTextInput"] input {', 1)[1].split("}", 1)[0]
+    assert "text-align: left" in search_input
+    assert 'key="years"' in app
+    assert "width=112" in app
+    assert "st.number_input" not in app
     assert "4 characters" in readme
     assert "spaces count" in readme
     assert "no second dropdown" not in readme

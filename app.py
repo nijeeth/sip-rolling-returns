@@ -15,11 +15,6 @@ from app_config import (
     MIN_SEARCH_QUERY_LENGTH,
     MAX_SEARCH_RESULTS,
     ROLLING_PERIOD_OPTIONS,
-    MIN_SIP_AMOUNT,
-    MAX_SIP_AMOUNT,
-    DEFAULT_SIP_AMOUNT,
-    DEFAULT_LUMPSUM_AMOUNT,
-    AMOUNT_STEP,
     MIN_VALID_PERIODS,
     CREATOR_EMAIL,
 )
@@ -40,8 +35,9 @@ from utils import (
     plot_rolling_xirr,
     build_excel,
     fmt_inr,
-    round_to_step,
+    format_indian_int,
     is_idcw_plan,
+    resolve_amount_state,
 )
 
 IDCW_WARNING = (
@@ -272,6 +268,7 @@ st.markdown("""
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
+        text-align: left !important;
     }
     .st-key-fund_combo [data-testid="stTextInputClearButton"] {
         width: 22px !important;
@@ -349,8 +346,8 @@ st.markdown("""
     .st-key-fund_menu button {
         width: 100% !important;
         display: flex !important;
-        justify-content: flex-end !important;
-        text-align: right !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
         background: transparent !important;
         border: none !important;
         border-radius: 8px !important;
@@ -365,7 +362,7 @@ st.markdown("""
         width: 100% !important;
         flex: 1 1 auto !important;
         display: flex !important;
-        justify-content: flex-end !important;
+        justify-content: flex-start !important;
         align-items: flex-start !important;
         min-width: 0 !important;
     }
@@ -373,12 +370,12 @@ st.markdown("""
         flex: 1 1 auto !important;
         width: auto !important;
         min-width: 0 !important;
-        text-align: right !important;
+        text-align: left !important;
         color: #1e293b !important;
     }
     .st-key-fund_menu button [data-testid="stMarkdownContainer"] p {
         width: auto !important;
-        text-align: right !important;
+        text-align: left !important;
         white-space: normal !important;
         color: #1e293b !important;
     }
@@ -441,7 +438,19 @@ st.markdown("""
     div[data-testid="column"] > div[data-testid="stNumberInput"] {
         min-width: 0;
     }
-    /* Rolling-period select (React Aria combobox): value and options sit on the right. */
+    /* Rolling-period select only. The fund search box stays left-aligned.
+       The control is a short field; the value and the option list sit on the right. */
+    .st-key-years {
+        width: 7rem !important;
+        max-width: 7rem !important;
+        flex: 0 0 7rem !important;
+    }
+    .st-key-years [data-testid="stSelectbox"] {
+        width: 7rem !important;
+        max-width: 7rem !important;
+    }
+    .st-key-years input,
+    .st-key-years [role="combobox"],
     div[data-testid="stSelectbox"] input[role="combobox"] {
         text-align: right !important;
     }
@@ -456,9 +465,13 @@ st.markdown("""
         justify-content: flex-end !important;
         text-align: right !important;
     }
-    /* SIP amount box — wide enough for 8 digits */
-    div[data-testid="stNumberInput"] input {
-        max-width: 140px;
+    /* Amount box: Indian grouping, no decimals. Wide enough for 1,00,00,000. */
+    .st-key-sip_amount_text {
+        width: 11rem !important;
+        max-width: 11rem !important;
+    }
+    .st-key-sip_amount_text input {
+        text-align: left !important;
     }
     /* go-to-top button styles injected via components.html */
 </style>
@@ -494,6 +507,76 @@ st.html(
       if (el.scrollTo) el.scrollTo({top: 0, behavior: 'smooth'});
       else el.scrollTop = 0;
     });
+  })();
+  (function () {
+    if (window.__sipIndianAmount) return;
+    window.__sipIndianAmount = true;
+    var valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    function isDigit(ch) {
+      return ch >= '0' && ch <= '9';
+    }
+    function digitsIn(text) {
+      var out = '';
+      for (var i = 0; i < text.length; i++) {
+        if (isDigit(text[i])) out += text[i];
+      }
+      return out;
+    }
+    function indianAmount(raw) {
+      var text = String(raw == null ? '' : raw);
+      var dot = text.indexOf('.');
+      if (dot !== -1) text = text.slice(0, dot);
+      var digits = digitsIn(text).replace(/^0+/, '');
+      if (digits.length > 12) digits = digits.slice(0, 12);
+      if (!digits) return '';
+      if (digits.length <= 3) return digits;
+      var tail = digits.slice(-3);
+      var head = digits.slice(0, -3);
+      var parts = [];
+      while (head.length > 2) {
+        parts.unshift(head.slice(-2));
+        head = head.slice(0, -2);
+      }
+      if (head) parts.unshift(head);
+      return parts.join(',') + ',' + tail;
+    }
+    function caretAfterDigits(formatted, digitsBefore) {
+      if (!digitsBefore) return 0;
+      var seen = 0;
+      for (var i = 0; i < formatted.length; i++) {
+        if (isDigit(formatted[i])) seen++;
+        if (seen >= digitsBefore) return i + 1;
+      }
+      return formatted.length;
+    }
+    function bind(input) {
+      if (!input || input.dataset.indianBound) return;
+      input.dataset.indianBound = '1';
+      input.setAttribute('inputmode', 'numeric');
+      input.setAttribute('autocomplete', 'off');
+      input.addEventListener('input', function () {
+        if (input.dataset.indianLock === '1') return;
+        var start = input.selectionStart || 0;
+        var digitsBefore = digitsIn(String(input.value).slice(0, start)).length;
+        var formatted = indianAmount(input.value);
+        if (formatted === input.value) return;
+        setTimeout(function () {
+          input.dataset.indianLock = '1';
+          valueSetter.call(input, formatted);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dataset.indianLock = '';
+          requestAnimationFrame(function () {
+            try { input.setSelectionRange(caretAfterDigits(input.value, digitsBefore), caretAfterDigits(input.value, digitsBefore)); }
+            catch (err) {}
+          });
+        }, 0);
+      });
+    }
+    function scan() {
+      document.querySelectorAll('.st-key-sip_amount_text input').forEach(bind);
+    }
+    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+    scan();
   })();
 </script>
 """,
@@ -563,7 +646,7 @@ with tab2:
 Use the one box under Select Mutual Fund. Type at least 4 characters of the fund name — spaces count — and pick a fund from the list on that same box. Press Enter to search. The search matches any part of the name and shows up to 30 funds. The × on the right of the box clears the choice so you can switch funds. A scheme code works the same way once it is at least 4 characters. If two funds in the list have the same name, the scheme code is shown beside that name.
 
 **Step 2 — Select Rolling Period**
-Choose 1, 2, 3, 5, 7, or 10 years. This is how long each investment is held.
+Choose a whole number of years from 1 to 10. This is how long each investment is held.
 
 **Step 3 — Choose Date Range**
 Set the From and To dates for your analysis window.
@@ -572,7 +655,7 @@ Set the From and To dates for your analysis window.
 - Every investment date and the sale date must fall on or before the To Date. If they do not, that start date is left out.
 
 **Step 4 — SIP or Lump sum**
-Leave **Lump sum** off for a regular monthly SIP. Turn it on for a one-time lump-sum investment. The amount box label changes to match. A SIP starts at ₹10,000. A lump sum starts at ₹1,00,000 the first time you turn the switch on. The amount must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
+Leave **Lump sum** off for a regular monthly SIP. Turn it on for a one-time lump-sum investment. The amount box label changes to match. A SIP starts at ₹10,000. A lump sum starts at ₹1,00,000 the first time you turn the switch on. The amount is shown with Indian grouping and no decimals (₹10,000, ₹1,00,000). It must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
 
 **Step 5 — Click Calculate**
 The app repeats the investment for every valid start date in your selected range.
@@ -714,48 +797,25 @@ def _latest_whats_new() -> str:
     return "\n".join(lines[start:end]).strip()
 
 
-def _clamp_amount(value) -> int:
-    """Round half up to the ₹ step, then keep the amount inside the allowed range."""
-    rounded = round_to_step(value, AMOUNT_STEP)
-    return max(MIN_SIP_AMOUNT, min(MAX_SIP_AMOUNT, rounded))
-
-
-def _sync_amount_for_mode(lump_sum_on: bool) -> None:
+def _sync_amount_for_mode(lump_sum_on: bool) -> int:
     """Point the shared amount box at the SIP or lump-sum figure.
 
-    The number input is created later with key ``sip_amount``. Session state for
-    that key is written here, before the widget exists. The first time Lump sum
-    is turned on, the box starts at DEFAULT_LUMPSUM_AMOUNT. After the user has
-    a lump-sum amount, switching away and back restores it. SIP does the same
-    with DEFAULT_SIP_AMOUNT.
+    The text input is created later with key ``sip_amount_text``. Session state
+    for that key is written here, before the widget exists, so a fresh SIP shows
+    10,000 and the first Lump sum shows 1,00,000. Typed text is parsed on the
+    next run, rounded to the ₹500 step, and shown with Indian grouping.
     """
-    if "amount_mode" not in st.session_state:
-        st.session_state.amount_mode = "sip"
-    if "saved_sip_amount" not in st.session_state:
-        st.session_state.saved_sip_amount = DEFAULT_SIP_AMOUNT
-    if "saved_lump_amount" not in st.session_state:
-        st.session_state.saved_lump_amount = None
-    if "sip_amount" not in st.session_state:
-        st.session_state.sip_amount = DEFAULT_SIP_AMOUNT
-
-    new_mode = "lumpsum" if lump_sum_on else "sip"
-    if new_mode != st.session_state.amount_mode:
-        if st.session_state.amount_mode == "sip":
-            st.session_state.saved_sip_amount = _clamp_amount(st.session_state.sip_amount)
-            remembered = st.session_state.saved_lump_amount
-            st.session_state.sip_amount = (
-                DEFAULT_LUMPSUM_AMOUNT if remembered is None else remembered
-            )
-        else:
-            st.session_state.saved_lump_amount = _clamp_amount(st.session_state.sip_amount)
-            st.session_state.sip_amount = st.session_state.saved_sip_amount
-        st.session_state.amount_mode = new_mode
-
-    st.session_state.sip_amount = _clamp_amount(st.session_state.sip_amount)
-    if new_mode == "lumpsum":
-        st.session_state.saved_lump_amount = st.session_state.sip_amount
-    else:
-        st.session_state.saved_sip_amount = st.session_state.sip_amount
+    state = resolve_amount_state(
+        lump_sum_on,
+        amount_mode=st.session_state.get("amount_mode"),
+        saved_sip_amount=st.session_state.get("saved_sip_amount"),
+        saved_lump_amount=st.session_state.get("saved_lump_amount"),
+        sip_amount=st.session_state.get("sip_amount"),
+        sip_amount_text=st.session_state.get("sip_amount_text"),
+    )
+    for key, value in state.items():
+        st.session_state[key] = value
+    return state["sip_amount"]
 
 
 def _toggle_fund_menu() -> None:
@@ -918,13 +978,14 @@ with tab1:
         selected_fund_code, selected_fund_name = _render_fund_picker()
 
         st.markdown("#### Analysis Period")
-        col_yr, col_from, col_to = st.columns([1, 1.35, 1.35])
+        col_yr, col_from, col_to = st.columns([0.72, 1.5, 1.5])
 
         with col_yr:
             st.markdown("**Rolling Period**")
             years = st.selectbox(
                 "Rolling Years", ROLLING_PERIOD_OPTIONS,
-                index=0, label_visibility="collapsed", key="years"
+                index=0, label_visibility="collapsed", key="years",
+                width=112,
             )
 
         with col_from:
@@ -949,17 +1010,17 @@ with tab1:
             key="lump_sum_mode",
             help=LUMP_SUM_HELP,
         )
-        # Seed the amount before the number input is created.
-        _sync_amount_for_mode(lump_sum_on)
+        # Seed the formatted amount before the text input is created.
+        sip_amount = _sync_amount_for_mode(lump_sum_on)
         amount_heading = "Lump sum amount (₹)" if lump_sum_on else "Monthly SIP Amount (₹)"
         st.markdown(f"#### {amount_heading}")
-        sip_amount = st.number_input(
+        st.text_input(
             amount_heading,
-            min_value=MIN_SIP_AMOUNT,
-            max_value=MAX_SIP_AMOUNT,
-            step=AMOUNT_STEP,
             label_visibility="collapsed",
-            key="sip_amount",
+            key="sip_amount_text",
+            placeholder="10,000",
+            width=176,
+            autocomplete="off",
         )
 
         st.divider()
@@ -1169,13 +1230,13 @@ with tab1:
                 invested = sip_amount_r
                 amount_title = (
                     f"&#x1F4B0; {years_r}-Year Lump Sum Amount Analysis "
-                    f"&mdash; &#x20B9;{sip_amount_r:,}"
+                    f"&mdash; &#x20B9;{format_indian_int(sip_amount_r)}"
                 )
             else:
                 invested = sip_amount_r * years_r * 12
                 amount_title = (
                     f"&#x1F4B0; {years_r}-Year SIP Amount Analysis "
-                    f"&mdash; &#x20B9;{sip_amount_r:,}/month"
+                    f"&mdash; &#x20B9;{format_indian_int(sip_amount_r)}/month"
                 )
             st.markdown(
                 "<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
