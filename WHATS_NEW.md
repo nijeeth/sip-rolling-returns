@@ -2,6 +2,10 @@
 
 A short log of what changed for people using the calculator.
 
+## Version 1.2.4 — 2 October 2026
+
+- **A SIP is sold on its anniversary.** For an N-year SIP, the sale date is the start date plus N years. A SIP that starts on 1 January 2024 is sold on 1 January 2025. The same rule applies to every other start date. If that day is a weekend or a market holiday, or there is no NAV, the sale uses the next day that has a NAV. The sale is not the day after the last monthly payment, and 31 December of the same year is not treated as one year. In the Excel file, End Date is that anniversary and Redemption Date is the day the units are sold.
+
 ## Version 1.2.2 — 29 September 2026
 
 - **Returns follow the real buy and sale.** If a date is closed, the app uses the next trading day. Large losses stay in the results. The rupee amount is the sale value (units times the sale price). Averages stay close to other sites. One very good or very bad period can differ, because those sites often sell on the previous trading day. The How it works tab has a short example.

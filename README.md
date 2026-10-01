@@ -22,7 +22,7 @@ This app can show one fewer period at the very end. That happens when the last a
 
 Prices come from mfapi.in, which passes on AMFI data. On every shared date that was checked, those prices matched Advisorkhoj. mfapi has no prices before about April 2006, so a longer history on another site cannot be matched here. Other sites may use a different data source, or skip a day now and then. That explains the small gaps that are left.
 
-The same sale rule applies to a SIP. If a payment day is closed, the app buys on the next trading day. It sells on the next trading day after the last payment. The SIP percentage uses those real dates. It is not a simple gain from the first price to the last price.
+The same sale rule applies to a SIP. If a payment day is closed, the app buys on the next trading day. The sale is the anniversary of the start date: that date plus the number of years. A SIP that starts on 1 January 2024 is sold on 1 January 2025. Every other start date uses its own anniversary. If that day is a weekend or a market holiday, or it has no NAV, the app sells on the next day that has a NAV. It does not sell on the day after the last monthly payment, and it does not treat 31 December of the same year as one full year. The SIP percentage uses those real dates. It is not a simple gain from the first price to the last price.
 
 ##### The documentation, UI, code are generated using AI tools ####
 
@@ -131,8 +131,8 @@ All defined in `app_config.py`:
 - `XIRR_TOLERANCE = 1e-12` → Used by `calculations.py`
 - `CACHE_EXPIRY_DAYS = 1` → Used by `data_api.py`
 - `LAKH_THRESHOLD = 100000` → Used by `utils.py`
-- `DEFAULT_SIP_AMOUNT = 1000` → Used by `app.py` (monthly SIP)
-- `DEFAULT_LUMPSUM_AMOUNT = 10000` → Used by `app.py` (one-time lump sum)
+- `DEFAULT_SIP_AMOUNT = 10000` → Used by `app.py` (monthly SIP)
+- `DEFAULT_LUMPSUM_AMOUNT = 100000` → Used by `app.py` (one-time lump sum)
 
 This modular design makes it easy to understand, modify, and extend!
 

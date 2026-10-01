@@ -348,8 +348,9 @@ st.markdown("""
     }
     .st-key-fund_menu button {
         width: 100% !important;
-        justify-content: flex-start !important;
-        text-align: left !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        text-align: right !important;
         background: transparent !important;
         border: none !important;
         border-radius: 8px !important;
@@ -359,10 +360,31 @@ st.markdown("""
         padding: 8px 10px !important;
         min-height: 0 !important;
     }
-    .st-key-fund_menu button p,
-    .st-key-fund_menu button span {
-        text-align: left !important;
+    .st-key-fund_menu button > div,
+    .st-key-fund_menu button span[data-has-shortcut="false"] {
+        width: 100% !important;
+        flex: 1 1 auto !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+        align-items: flex-start !important;
+        min-width: 0 !important;
+    }
+    .st-key-fund_menu button [data-testid="stMarkdownContainer"] {
+        flex: 1 1 auto !important;
+        width: auto !important;
+        min-width: 0 !important;
+        text-align: right !important;
         color: #1e293b !important;
+    }
+    .st-key-fund_menu button [data-testid="stMarkdownContainer"] p {
+        width: auto !important;
+        text-align: right !important;
+        white-space: normal !important;
+        color: #1e293b !important;
+    }
+    .st-key-fund_menu button [data-testid="stIconMaterial"] {
+        width: auto !important;
+        flex: 0 0 auto !important;
     }
     .st-key-fund_menu button:hover {
         background: #f0fdfa !important;
@@ -418,6 +440,21 @@ st.markdown("""
     div[data-testid="column"] > div[data-testid="stDateInput"],
     div[data-testid="column"] > div[data-testid="stNumberInput"] {
         min-width: 0;
+    }
+    /* Rolling-period select (React Aria combobox): value and options sit on the right. */
+    div[data-testid="stSelectbox"] input[role="combobox"] {
+        text-align: right !important;
+    }
+    [data-testid="stSelectboxVirtualDropdown"] [role="option"] {
+        text-align: right !important;
+        justify-content: flex-end !important;
+    }
+    [data-testid="stSelectboxVirtualDropdown"] [role="option"] > div {
+        margin-left: auto !important;
+        width: auto !important;
+        flex: 0 0 auto !important;
+        justify-content: flex-end !important;
+        text-align: right !important;
     }
     /* SIP amount box — wide enough for 8 digits */
     div[data-testid="stNumberInput"] input {
@@ -535,7 +572,7 @@ Set the From and To dates for your analysis window.
 - Every investment date and the sale date must fall on or before the To Date. If they do not, that start date is left out.
 
 **Step 4 — SIP or Lump sum**
-Leave **Lump sum** off for a regular monthly SIP. Turn it on for a one-time lump-sum investment. The amount box label changes to match. A SIP starts at ₹1,000. A lump sum starts at ₹10,000 the first time you turn the switch on. The amount must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
+Leave **Lump sum** off for a regular monthly SIP. Turn it on for a one-time lump-sum investment. The amount box label changes to match. A SIP starts at ₹10,000. A lump sum starts at ₹1,00,000 the first time you turn the switch on. The amount must be a multiple of ₹500 (minimum ₹500, maximum ₹1,00,000). A number that falls halfway between two steps is rounded up (₹1,250 becomes ₹1,500).
 
 **Step 5 — Click Calculate**
 The app repeats the investment for every valid start date in your selected range.
@@ -621,7 +658,7 @@ This app can show one fewer period at the very end. That happens when the last a
 
 Prices come from mfapi.in, which passes on AMFI data. On every shared date that was checked, those prices matched Advisorkhoj. mfapi has no prices before about April 2006, so a longer history on another site cannot be matched here. Other sites may use a different data source, or skip a day now and then. That explains the small gaps that are left.
 
-The same sale rule applies to a SIP. If a payment day is closed, the app buys on the next trading day. It sells on the next trading day after the last payment. The SIP percentage uses those real dates. It is not a simple gain from the first price to the last price.
+The same sale rule applies to a SIP. If a payment day is closed, the app buys on the next trading day. The sale is the anniversary of the start date: that date plus the number of years. A SIP that starts on 1 January 2024 is sold on 1 January 2025. Every other start date uses its own anniversary. If that day is a weekend or a market holiday, or it has no NAV, the app sells on the next day that has a NAV. It does not sell on the day after the last monthly payment, and it does not treat 31 December of the same year as one full year. The SIP percentage uses those real dates. It is not a simple gain from the first price to the last price.
 
 ---
     """, unsafe_allow_html=True)
@@ -630,7 +667,7 @@ The same sale rule applies to a SIP. If a payment day is closed, the app buys on
     st.markdown("""
 ## 🔢 Calculation Logic
 
-**SIP.** Each month the tool buys units at the next available NAV. On the next NAV after the last instalment it sells every unit. The rupee result is that sale value. XIRR is the annual rate that makes those cash flows balance, using the actual number of days and a 365.25-day year. The rate is found by a bracketed search that still works when the loss is very large.
+**SIP.** Each month the tool buys units at the next available NAV. A 1-year SIP is 12 monthly buys. A 2-year SIP is 24, and so on. The sale is on the anniversary: the start date plus the number of years. If that exact day has a NAV, that price is used. If it is a weekend, a market holiday, or any day with no NAV, the sale is the next day that has a NAV. The sale is not the day after the last instalment, and 31 December of the starting year is not used as the one-year date. In the Excel file, **End Date** is that anniversary and **Redemption Date** is the day the units are actually sold. When the anniversary has a NAV, those two dates match. The rupee result is that sale value. XIRR is the annual rate that makes those cash flows balance, using the actual number of days and a 365.25-day year. The rate is found by a bracketed search that still works when the loss is very large.
 
 **Lump sum.** The tool buys once, at the next NAV on or after the start date, and sells at the first NAV on or after the same date N years later. CAGR is (end NAV / start NAV) raised to 1 / years, where years is the actual number of days between those two NAV dates divided by 365.25. The rupee result is amount × end NAV / start NAV.
 
@@ -659,16 +696,21 @@ For the full steps, assumptions, and edge cases — download the document below.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _latest_whats_new() -> str:
-    """First version section of WHATS_NEW.md, for the collapsed note on the home tab."""
+    """Two newest version sections of WHATS_NEW.md, for the home-tab note.
+
+    The collapsed note keeps the previous summary and adds the latest dated
+    item above it. Older sections stay in the file and are not repeated here.
+    """
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "WHATS_NEW.md")
     try:
         lines = open(path, encoding="utf-8").read().splitlines()
     except OSError:
         return ""
-    start = next((i for i, line in enumerate(lines) if line.startswith("## ")), None)
-    if start is None:
+    headings = [i for i, line in enumerate(lines) if line.startswith("## ")]
+    if not headings:
         return ""
-    end = next((j for j in range(start + 1, len(lines)) if lines[j].startswith("## ")), len(lines))
+    start = headings[0]
+    end = headings[2] if len(headings) > 2 else len(lines)
     return "\n".join(lines[start:end]).strip()
 
 

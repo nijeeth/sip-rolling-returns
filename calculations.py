@@ -176,6 +176,13 @@ def calculate_rolling_sip(
     """
     Rolling SIP results for every valid start date.
 
+    Each period buys on the start date and then monthly, for ``years`` × 12
+    instalments. The holding ends on the anniversary: start date plus ``years``
+    calendar years. That anniversary is End Date. Redemption Date is the NAV on
+    that day, or the next later day that has a NAV when the anniversary is a
+    weekend, a market holiday, or otherwise has no price. It is not the day
+    after the last instalment, and it is not 31 December of the starting year.
+
     Final Value is the redemption proceeds of a ₹1 monthly SIP (units × redemption NAV).
     Multiply by the rupee SIP amount to get the investor's amount. XIRR does not
     depend on the SIP amount, so the amount is applied after this function.
@@ -193,10 +200,10 @@ def calculate_rolling_sip(
     if snapped_start is None or snapped_start > range_end:
         return pd.DataFrame()
 
-    # Month subtraction clips day-of-month (31 May minus 11 months from 30 April
-    # becomes 30 May). Keep a few extra days and accept or reject each start
-    # from its real instalment and redemption dates.
-    nominal_max = range_end - relativedelta(months=months_target - 1)
+    # Year subtraction can clip a day (29 February becomes 28 February).
+    # Keep a few extra candidate days and accept or reject each start from
+    # its real instalment dates and its anniversary redemption.
+    nominal_max = range_end - relativedelta(years=years)
     max_start = nominal_max + relativedelta(days=3)
 
     start_candidates = nav_df[
@@ -244,11 +251,13 @@ def calculate_rolling_sip(
             continue
 
         last_date = invest_dates[-1]
-        redeem_date, redeem_nav = get_next_nav_fast(
-            nav_dates, nav_vals, last_date + pd.Timedelta(days=1)
-        )
+        # Anniversary of this start, not the day after the last instalment
+        # and not 31 December of the same year. 1 Jan 2024 → 1 Jan 2025.
+        end_target = pd.Timestamp(start_date) + relativedelta(years=years)
+        redeem_date, redeem_nav = get_next_nav_fast(nav_dates, nav_vals, end_target)
         if (
             redeem_date is None
+            or redeem_date <= last_date
             or redeem_date > range_end
             or redeem_nav is None
             or redeem_nav <= 0
@@ -271,7 +280,7 @@ def calculate_rolling_sip(
         results.append(
             {
                 "Start Date": start_date.date(),
-                "End Date": last_date.date(),
+                "End Date": end_target.date(),
                 "Redemption Date": redeem_date.date(),
                 "Instalments": months_target,
                 "XIRR %": round(float(irr_val) * 100, 2),
