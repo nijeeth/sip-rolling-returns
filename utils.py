@@ -25,7 +25,11 @@ from io import BytesIO
 from app_config import (
     AMOUNT_STEP,
     CRORE_THRESHOLD,
+    DEFAULT_LUMPSUM_AMOUNT,
+    DEFAULT_SIP_AMOUNT,
     LAKH_THRESHOLD,
+    MAX_SIP_AMOUNT,
+    MIN_SIP_AMOUNT,
     MIN_VALID_PERIODS,
     CREATOR_NAME,
     CREATOR_EMAIL,
@@ -38,6 +42,94 @@ def round_to_step(value: float, step: int = AMOUNT_STEP) -> int:
     if step <= 0:
         raise ValueError("step must be positive")
     return int(math.floor(float(value) / step + 0.5)) * step
+
+
+def format_indian_int(value: int) -> str:
+    """Group an integer with Indian commas and no decimals (10000000 → ``1,00,00,000``)."""
+    number = int(value)
+    sign = "-" if number < 0 else ""
+    digits = str(abs(number))
+    if len(digits) <= 3:
+        return sign + digits
+    head, tail = digits[:-3], digits[-3:]
+    groups = []
+    while head:
+        groups.append(head[-2:])
+        head = head[:-2]
+    groups.reverse()
+    return sign + ",".join(groups) + "," + tail
+
+
+def parse_indian_amount(text: Optional[str]) -> Optional[int]:
+    """Read a whole-rupee amount. Commas may be Indian or Western. Decimals are rejected."""
+    if text is None:
+        return None
+    raw = str(text).strip().replace("₹", "").replace(" ", "")
+    if "." in raw:
+        raw = raw.split(".", 1)[0]
+    if raw == "":
+        return None
+    raw = raw.replace(",", "")
+    if not raw.isdigit():
+        return None
+    return int(raw)
+
+
+def clamp_amount(value) -> int:
+    """Round half up to the ₹ step, then keep the amount inside the allowed range."""
+    rounded = round_to_step(value, AMOUNT_STEP)
+    return max(MIN_SIP_AMOUNT, min(MAX_SIP_AMOUNT, rounded))
+
+
+def resolve_amount_state(
+    lump_sum_on: bool,
+    *,
+    amount_mode: Optional[str],
+    saved_sip_amount: Optional[int],
+    saved_lump_amount: Optional[int],
+    sip_amount: Optional[int],
+    sip_amount_text: Optional[str],
+) -> dict:
+    """Choose the SIP or lump-sum figure and the text shown in the amount box.
+
+    A fresh SIP starts at DEFAULT_SIP_AMOUNT. The first time Lump sum is turned
+    on, the box starts at DEFAULT_LUMPSUM_AMOUNT. Later switches restore the
+    amount last used for that mode. Typed text is parsed, rounded to the step,
+    and shown again with Indian grouping and no decimals.
+    """
+    mode = amount_mode if amount_mode in ("sip", "lumpsum") else "sip"
+    saved_sip = DEFAULT_SIP_AMOUNT if saved_sip_amount is None else int(saved_sip_amount)
+    saved_lump = None if saved_lump_amount is None else int(saved_lump_amount)
+    current = DEFAULT_SIP_AMOUNT if sip_amount is None else int(sip_amount)
+
+    if sip_amount_text is not None:
+        parsed = parse_indian_amount(sip_amount_text)
+        if parsed is not None:
+            current = parsed
+
+    new_mode = "lumpsum" if lump_sum_on else "sip"
+    if new_mode != mode:
+        if mode == "sip":
+            saved_sip = clamp_amount(current)
+            current = DEFAULT_LUMPSUM_AMOUNT if saved_lump is None else saved_lump
+        else:
+            saved_lump = clamp_amount(current)
+            current = saved_sip
+        mode = new_mode
+
+    current = clamp_amount(current)
+    if mode == "lumpsum":
+        saved_lump = current
+    else:
+        saved_sip = current
+
+    return {
+        "amount_mode": mode,
+        "saved_sip_amount": saved_sip,
+        "saved_lump_amount": saved_lump,
+        "sip_amount": current,
+        "sip_amount_text": format_indian_int(current),
+    }
 
 
 def is_idcw_plan(fund_name: Optional[str]) -> bool:
@@ -82,7 +174,7 @@ def fmt_inr(v: float) -> str:
         return f'{sign}₹{v/10_000_000:.2f} Cr'
     elif v >= LAKH_THRESHOLD:
         return f'{sign}₹{v/100_000:.2f} L'
-    return f'{sign}₹{v:,}'
+    return f'{sign}₹{format_indian_int(v)}'
 
 
 def validate_inputs(selected_fund_code: Optional[str], from_date: Optional[date], 
@@ -283,15 +375,15 @@ def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int,
         ws.set_row(2, 20)
         if is_lump:
             ws.write(3, 0, 'Lump Sum Amount:', fmt_lbl)
-            ws.write(3, 1, f'₹{sip_amount:,}', fmt_meta)
+            ws.write(3, 1, f'₹{format_indian_int(sip_amount)}', fmt_meta)
             ws.write(3, 2, 'Invested:', fmt_lbl)
-            ws.write(3, 3, f'₹{sip_amount:,}', fmt_meta)
+            ws.write(3, 3, f'₹{format_indian_int(sip_amount)}', fmt_meta)
             for c in range(4, NC+1): ws.write(3, c, '', fmt_blank)
         elif sip_enabled:
             ws.write(3, 0, 'SIP Amount:', fmt_lbl)
-            ws.write(3, 1, f'₹{sip_amount:,}/month', fmt_meta)
+            ws.write(3, 1, f'₹{format_indian_int(sip_amount)}/month', fmt_meta)
             ws.write(3, 2, 'Total Invested:', fmt_lbl)
-            ws.write(3, 3, f'₹{sip_amount * years * 12:,}', fmt_meta)
+            ws.write(3, 3, f'₹{format_indian_int(sip_amount * years * 12)}', fmt_meta)
             for c in range(4, NC+1): ws.write(3, c, '', fmt_blank)
         else:
             for c in range(0, NC+1): ws.write(3, c, '', fmt_blank)

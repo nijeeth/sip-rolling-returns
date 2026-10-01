@@ -64,7 +64,7 @@ LAKH_THRESHOLD = 100_000        # Format as lakhs above this value (1 L)
 # ══════════════════════════════════════════════════════════════════════════════
 # ROLLING PERIOD OPTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-ROLLING_PERIOD_OPTIONS = [1, 2, 3, 5, 7, 10]  # Available rolling period years
+ROLLING_PERIOD_OPTIONS = list(range(1, 11))  # Every year from 1 through 10
 
 # ══════════════════════════════════════════════════════════════════════════════
 # RETURN DISTRIBUTION BINS
