@@ -10,9 +10,9 @@ def test_settings_module_is_not_streamlit_config():
     assert app_config.__file__ != streamlit_config.__file__
     # Names app.py imports at startup. A clash with streamlit.config raises
     # ImportError here because that module does not define them.
-    assert app_config.DEFAULT_LUMPSUM_AMOUNT == 10_000
+    assert app_config.DEFAULT_LUMPSUM_AMOUNT == 100_000
     assert app_config.CREATOR_EMAIL == "nijeethfish@gmail.com"
-    assert app_config.DEFAULT_SIP_AMOUNT == 1000
+    assert app_config.DEFAULT_SIP_AMOUNT == 10_000
     assert app_config.MIN_SEARCH_QUERY_LENGTH == 4
     assert app_config.MAX_SEARCH_RESULTS == 30
     assert not hasattr(streamlit_config, "DEFAULT_LUMPSUM_AMOUNT")

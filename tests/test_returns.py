@@ -71,32 +71,99 @@ def test_xirr_does_not_raise_on_near_total_loss():
     assert not np.isfinite(got)
 
 
-def _monthly_nav(start, months, navs, extra_days=5):
-    dates = [pd.Timestamp(start) + relativedelta(months=i) for i in range(months)]
-    last = dates[-1]
-    for extra in range(1, extra_days + 1):
-        dates.append(last + pd.Timedelta(days=extra))
-        navs = list(navs) + [navs[-1]]
-    return pd.DataFrame({"date": dates[: months + extra_days], "nav": navs[: months + extra_days]})
-
-
 def test_final_value_is_units_times_redemption_nav():
     start = pd.Timestamp("2014-01-01")
-    navs = [10, 12, 15, 14, 16, 18, 20, 19, 17, 21, 22, 25]
-    frame = _monthly_nav(start, 12, navs, extra_days=3)
-    redeem_nav = 25.0
-    out = calculate_rolling_sip(frame, 1, start, start + relativedelta(months=13))
-    assert len(out) >= 1
+    instalment_navs = [10, 12, 15, 14, 16, 18, 20, 19, 17, 21, 22, 25]
+    dates = [start + relativedelta(months=i) for i in range(12)]
+    # Anniversary is 1 Jan 2015, not the day after the December instalment.
+    dates.append(start + relativedelta(years=1))
+    redeem_nav = 30.0
+    frame = pd.DataFrame({"date": dates, "nav": instalment_navs + [redeem_nav]})
+    out = calculate_rolling_sip(frame, 1, start, start + relativedelta(years=1))
+    assert len(out) == 1
     first = out.iloc[0]
-    units = sum(1.0 / nav for nav in navs)
+    units = sum(1.0 / nav for nav in instalment_navs)
+    assert first["Start Date"] == date(2014, 1, 1)
+    assert first["End Date"] == date(2015, 1, 1)
+    assert first["Redemption Date"] == date(2015, 1, 1)
     assert first["Final Value"] == pytest.approx(units * redeem_nav)
+    assert first["Final Value"] != pytest.approx(units * instalment_navs[-1])
     assert first["Final Value"] != pytest.approx(12.0)  # not simply instalments × ₹1
+
+
+def test_one_year_sip_redeems_on_the_anniversary_not_31_december():
+    """1 Jan 2024 is sold on 1 Jan 2025, even when 31 Dec 2024 has a NAV."""
+    start = pd.Timestamp("2024-01-01")
+    dates = [start + relativedelta(months=i) for i in range(12)]
+    dates += [pd.Timestamp("2024-12-31"), pd.Timestamp("2025-01-01")]
+    navs = [10.0] * 12 + [50.0, 20.0]
+    frame = pd.DataFrame({"date": dates, "nav": navs})
+    out = calculate_rolling_sip(frame, 1, start, "2025-01-15")
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["End Date"] == date(2025, 1, 1)
+    assert row["Redemption Date"] == date(2025, 1, 1)
+    assert row["Redemption Date"] != date(2024, 12, 31)
+    assert row["Redemption Date"] != date(2024, 12, 2)
+    units = 12 * (1.0 / 10.0)
+    assert row["Final Value"] == pytest.approx(units * 20.0)
+
+
+def test_anniversary_without_a_nav_uses_the_next_nav():
+    start = pd.Timestamp("2024-01-02")
+    dates = [start + relativedelta(months=i) for i in range(12)]
+    # 2 Jan 2025 is missing. The next price is 3 Jan 2025.
+    dates.append(pd.Timestamp("2025-01-03"))
+    frame = pd.DataFrame({"date": dates, "nav": [10.0] * 12 + [11.0]})
+    out = calculate_rolling_sip(frame, 1, start, "2025-01-10")
+    assert len(out) == 1
+    row = out.iloc[0]
+    assert row["End Date"] == date(2025, 1, 2)
+    assert row["Redemption Date"] == date(2025, 1, 3)
+    assert row["Final Value"] == pytest.approx(12 * (1.0 / 10.0) * 11.0)
+
+
+def test_each_start_date_uses_its_own_anniversary():
+    frame = pd.DataFrame(
+        {"date": pd.date_range("2023-01-01", "2026-06-01"), "nav": 15.0}
+    )
+    out = calculate_rolling_sip(frame, 1, "2023-01-01", "2024-06-01")
+    assert not out.empty
+    for _, row in out.iterrows():
+        anniversary = pd.Timestamp(row["Start Date"]) + relativedelta(years=1)
+        assert pd.Timestamp(row["End Date"]) == anniversary
+        assert pd.Timestamp(row["Redemption Date"]) == anniversary
+        assert row["Instalments"] == 12
+    # Other start dates, and a longer rolling period, follow the same rule.
+    row = out[out["Start Date"] == date(2023, 3, 15)].iloc[0]
+    assert row["End Date"] == date(2024, 3, 15)
+    two_year = calculate_rolling_sip(frame, 2, "2023-01-01", "2025-06-01")
+    kept = two_year[two_year["Start Date"] == date(2023, 3, 15)].iloc[0]
+    assert kept["End Date"] == date(2025, 3, 15)
+    assert kept["Redemption Date"] == date(2025, 3, 15)
+    assert kept["Instalments"] == 24
+
+
+def test_leap_day_anniversary_is_28_february():
+    """29 Feb 2024 plus one year is 28 Feb 2025, and that start is still kept."""
+    frame = pd.DataFrame(
+        {"date": pd.date_range("2024-01-01", "2025-03-15"), "nav": 12.0}
+    )
+    out = calculate_rolling_sip(frame, 1, "2024-02-01", "2025-02-28")
+    starts = set(out["Start Date"])
+    assert date(2024, 2, 29) in starts
+    row = out[out["Start Date"] == date(2024, 2, 29)].iloc[0]
+    assert row["End Date"] == date(2025, 2, 28)
+    assert row["Redemption Date"] == date(2025, 2, 28)
+    assert date(2024, 3, 1) not in starts
 
 
 def test_scaling_amount_does_not_change_xirr():
     start = pd.Timestamp("2014-01-01")
-    navs = [10 + i for i in range(12)]
-    frame = _monthly_nav(start, 12, navs)
+    dates = [start + relativedelta(months=i) for i in range(12)]
+    dates.append(start + relativedelta(years=1))
+    navs = [10 + i for i in range(12)] + [30.0]
+    frame = pd.DataFrame({"date": dates, "nav": navs})
     per_rupee = calculate_rolling_sip(frame, 1, "2014-01-01", "2015-06-01")
     small = scale_final_values(per_rupee, 1000)
     large = scale_final_values(per_rupee, 5000)
@@ -130,31 +197,36 @@ def test_zero_nav_is_not_used_in_a_sip():
 def test_to_date_blocks_instalments_and_redemption_after_the_end():
     frame = pd.DataFrame(
         {
-            "date": pd.bdate_range("2018-01-01", "2019-02-15"),
+            "date": pd.bdate_range("2018-01-01", "2019-03-15"),
             "nav": 100.0,
         }
     )
-    to_date = pd.Timestamp("2018-12-29")
+    to_date = pd.Timestamp("2019-01-15")
     out = calculate_rolling_sip(frame, 1, "2018-01-02", to_date)
     assert not out.empty
     assert (pd.to_datetime(out["End Date"]) <= to_date).all()
     assert (pd.to_datetime(out["Redemption Date"]) <= to_date).all()
-    # 29 Jan 2018 schedules its last instalment on Sat 29 Dec 2018, which snaps
-    # into 2019. That period must not be kept.
+    # 2 Jan 2018 is sold on 2 Jan 2019, which is still inside the To Date.
+    kept = out[out["Start Date"] == date(2018, 1, 2)].iloc[0]
+    assert kept["End Date"] == date(2019, 1, 2)
+    assert kept["Redemption Date"] == date(2019, 1, 2)
+    # 29 Jan 2018 would be sold on 29 Jan 2019, after the To Date.
     assert date(2018, 1, 29) not in set(out["Start Date"])
 
 
 def test_month_end_start_follows_the_real_sale_date():
-    """30 Apr 2019 as the To Date: 29 May 2018 sells on 30 Apr and is kept.
-    30 and 31 May 2018 sell on 1 May, which is after the To Date, so they are left out.
+    """30 Apr 2019 as the To Date: 30 Apr 2018 is sold on 30 Apr 2019 and is kept.
+    1 May 2018 is sold on 1 May 2019, which is after the To Date, so it is left out.
     """
-    frame = pd.DataFrame({"date": pd.date_range("2018-04-01", "2019-05-05"), "nav": 20.0})
+    frame = pd.DataFrame({"date": pd.date_range("2018-04-01", "2019-06-05"), "nav": 20.0})
     out = calculate_rolling_sip(frame, 1, "2018-04-01", "2019-04-30")
     starts = set(out["Start Date"])
-    assert date(2018, 5, 29) in starts
-    assert date(2018, 5, 30) not in starts
+    assert date(2018, 4, 30) in starts
+    assert date(2018, 5, 1) not in starts
+    assert date(2018, 5, 29) not in starts
     assert date(2018, 5, 31) not in starts
-    kept = out[out["Start Date"] == date(2018, 5, 29)].iloc[0]
+    kept = out[out["Start Date"] == date(2018, 4, 30)].iloc[0]
+    assert kept["End Date"] == date(2019, 4, 30)
     assert kept["Redemption Date"] == date(2019, 4, 30)
 
 
@@ -255,8 +327,8 @@ def test_excel_exports_actual_final_value_and_lump_sum_columns():
     sip = pd.DataFrame(
         {
             "Start Date": ["01/01/2015"],
-            "End Date": ["01/12/2015"],
-            "Redemption Date": ["02/12/2015"],
+            "End Date": ["01/01/2016"],
+            "Redemption Date": ["01/01/2016"],
             "Instalments": [12],
             "XIRR %": [12.5],
             "Invested Amount (₹)": [12000],

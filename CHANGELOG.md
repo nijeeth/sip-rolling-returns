@@ -5,6 +5,16 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-10-02
+
+### Changed
+
+- An N-year SIP is sold on the anniversary of its start date (start date plus N years). The NAV on that calendar date is used. If that day is a weekend, a market holiday, or has no NAV, the sale is the next day that has a NAV. The sale is not the next NAV after the last instalment, and 31 December of the starting year is not used as a 1-year end. Example: a SIP starting 1 January 2024 is sold on 1 January 2025. In the Excel file, End Date is that anniversary and Redemption Date is the NAV date used for the sale.
+- The default monthly SIP amount is ₹10,000. The default lump-sum amount, the first time that mode is turned on, is ₹1,00,000.
+- Fund picker matches and the rolling-period select list are aligned to the right.
+
+SIP XIRR figures change because the sale date is later. The XIRR search itself, lump-sum CAGR, and the monthly buy dates are unchanged.
+
 ## [1.2.3] - 2026-09-29
 
 ### Fixed

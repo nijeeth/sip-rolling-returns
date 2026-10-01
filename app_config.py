@@ -52,8 +52,8 @@ AMOUNT_STEP = 500               # SIP and lump-sum amounts round to this step
 # SIP Amount Limits
 MIN_SIP_AMOUNT = 500            # Minimum SIP amount in rupees
 MAX_SIP_AMOUNT = 100_000        # Maximum SIP amount in rupees
-DEFAULT_SIP_AMOUNT = 1000       # Default SIP amount in rupees
-DEFAULT_LUMPSUM_AMOUNT = 10_000  # Default one-time amount when Lump sum is first turned on
+DEFAULT_SIP_AMOUNT = 10_000     # Default SIP amount in rupees
+DEFAULT_LUMPSUM_AMOUNT = 100_000  # Default one-time amount when Lump sum is first turned on
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CURRENCY FORMATTING

@@ -112,21 +112,37 @@ def test_editing_the_selected_name_clears_it_and_searches_again():
     assert state["menu_open"] is True
 
 
-def test_in_app_whats_new_is_the_user_facing_summary():
+def _in_app_whats_new() -> str:
+    """Same slice the home tab shows: the two newest version sections."""
     text = Path("WHATS_NEW.md").read_text(encoding="utf-8")
-    first, _rest = text.split("## ", 1)[1].split("\n## ", 1)
-    latest = "## " + first
-    assert latest.startswith("## Version 1.2.2")
+    lines = text.splitlines()
+    headings = [i for i, line in enumerate(lines) if line.startswith("## ")]
+    end = headings[2] if len(headings) > 2 else len(lines)
+    return "\n".join(lines[headings[0]:end]).strip()
+
+
+def test_in_app_whats_new_is_the_user_facing_summary():
+    latest = _in_app_whats_new()
+    assert latest.startswith("## Version 1.2.4 — 2 October 2026")
+    assert "anniversary" in latest.lower()
+    assert "next day that has a NAV" in latest
+    assert "31 December" in latest
+    # The new note is dated on its own. It does not announce amount defaults.
+    redemption_note, previous = latest.split("\n## ", 1)
+    assert "₹" not in redemption_note
+    assert "default" not in redemption_note.lower()
+    previous = "## " + previous
+    assert previous.startswith("## Version 1.2.2")
     assert "ImportError" not in latest
     assert "startup error" not in latest.lower()
     assert "config.py" not in latest
-    assert "4 characters" in latest
-    assert "spaces count" in latest
-    assert "Lump sum" in latest
-    assert "₹1,000" in latest
-    assert "₹10,000" in latest
-    assert "30 funds" in latest
-    lowered = latest.lower()
+    assert "4 characters" in previous
+    assert "spaces count" in previous
+    assert "Lump sum" in previous
+    assert "₹1,000" in previous
+    assert "₹10,000" in previous
+    assert "30 funds" in previous
+    lowered = previous.lower()
     assert "one box" in lowered
     assert "no second dropdown" not in lowered
     assert "click a row" not in lowered
@@ -140,9 +156,20 @@ def test_how_it_works_and_readme_describe_the_one_box():
     assert "at least 4 characters" in app
     assert "spaces count" in app
     assert "up to 30 funds" in app
+    assert "A SIP starts at ₹10,000" in app
+    assert "A lump sum starts at ₹1,00,000" in app
+    assert "sold on the anniversary" in app or "sale is the anniversary" in app
+    assert "next trading day after the last payment" not in app
+    menu_rule = app.split(".st-key-fund_menu button {", 1)[1].split("}", 1)[0]
+    assert "text-align: right" in menu_rule
+    assert "flex-end" in menu_rule
     assert "4 characters" in readme
     assert "spaces count" in readme
     assert "no second dropdown" not in readme
+    assert "anniversary of the start date" in readme
+    assert "DEFAULT_SIP_AMOUNT = 10000" in readme
+    assert "DEFAULT_LUMPSUM_AMOUNT = 100000" in readme
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [1.2.4]" in changelog
     assert "## [1.2.2]" in changelog
     assert "ImportError" in changelog
