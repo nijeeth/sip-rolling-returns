@@ -30,7 +30,7 @@ from fund_picker import (
     sync_fund_picker_state,
     unique_fund_matches,
 )
-from utils import (
+from app_utils import (
     validate_inputs,
     plot_rolling_xirr,
     build_excel,

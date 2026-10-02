@@ -18,7 +18,7 @@ from calculations import (
 )
 from app_config import DAYS_PER_YEAR, MIN_VALID_PERIODS
 from data_api import MfapiError, clean_nav_dataframe, fetch_nav, load_nav, load_search_results
-from utils import round_to_step, validate_inputs
+from app_utils import round_to_step, validate_inputs
 
 
 def _npv(rate, cashflows, dates):
@@ -260,7 +260,7 @@ def test_lump_sum_cagr_known_example():
 
 
 def test_idcw_plans_are_recognised():
-    from utils import is_idcw_plan
+    from app_utils import is_idcw_plan
 
     assert is_idcw_plan("HDFC Large & Mid Cap Fund - Direct Plan - IDCW Option")
     assert is_idcw_plan("Old Plan - Dividend Payout")
@@ -322,7 +322,7 @@ def test_fetch_failure_is_not_cached(monkeypatch):
 
 
 def test_excel_exports_actual_final_value_and_lump_sum_columns():
-    from utils import build_excel
+    from app_utils import build_excel
 
     sip = pd.DataFrame(
         {

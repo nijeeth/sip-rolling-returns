@@ -37,7 +37,7 @@ sip_app/
 ├── fund_picker.py      # Fund search box helpers
 ├── calculations.py     # XIRR, lump-sum CAGR, rolling windows
 ├── data_api.py         # API calls to mfapi.in
-├── utils.py            # Formatting, validation, chart, Excel
+├── app_utils.py        # Formatting, validation, chart, Excel
 ├── logic_notes.docx    # How the returns are calculated
 ├── CHANGELOG.md        # Version history
 ├── WHATS_NEW.md        # Plain-language notes for each version
@@ -72,7 +72,7 @@ sip_app/
 - File-based caching
 - Retry logic for API failures
 
-### **utils.py** - Helper Functions
+### **app_utils.py** - Helper Functions
 - Input validation
 - Currency formatting (₹ Lakh/Crore)
 - Date formatting
@@ -85,7 +85,7 @@ sip_app/
 
 ```
 app.py
-  ├── imports: app_config, data_api, calculations, utils
+  ├── imports: app_config, data_api, calculations, fund_picker, app_utils
   └── calls: fetch_nav(), search_funds(), rolling SIP and lump-sum calculations
 
 calculations.py
@@ -96,7 +96,7 @@ data_api.py
   ├── imports: app_config
   └── uses: API settings, cache settings
 
-utils.py
+app_utils.py
   ├── imports: app_config
   └── uses: formatting constants
 ```
@@ -119,18 +119,18 @@ This tool is for educational purposes only. Not financial advice. Mutual fund in
 ### Understanding the Code Flow
 
 1. **User enters inputs** → `app.py` (UI)
-2. **Validate inputs** → `utils.validate_inputs()` 
+2. **Validate inputs** → `app_utils.validate_inputs()` 
 3. **Fetch NAV data** → `data_api.fetch_nav()`
 4. **Calculate returns** → `calculations.calculate_rolling_sip()` or `calculate_rolling_lumpsum()`
 5. **Display results** → `app.py` (UI)
-6. **Generate Excel** → `utils.build_excel()`
+6. **Generate Excel** → `app_utils.build_excel()`
 
 ### Constants Used Throughout
 
 All defined in `app_config.py`:
 - `XIRR_TOLERANCE = 1e-12` → Used by `calculations.py`
 - `CACHE_EXPIRY_DAYS = 1` → Used by `data_api.py`
-- `LAKH_THRESHOLD = 100000` → Used by `utils.py`
+- `LAKH_THRESHOLD = 100000` → Used by `app_utils.py`
 - `DEFAULT_SIP_AMOUNT = 10000` → Used by `app.py` (monthly SIP)
 - `DEFAULT_LUMPSUM_AMOUNT = 100000` → Used by `app.py` (one-time lump sum)
 - `ROLLING_PERIOD_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]` → Used by `app.py`

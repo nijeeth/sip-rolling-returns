@@ -1,6 +1,6 @@
 """Amount box: Indian grouping, no decimals, and the SIP / lump-sum defaults."""
 
-from utils import format_indian_int, parse_indian_amount, resolve_amount_state
+from app_utils import format_indian_int, parse_indian_amount, resolve_amount_state
 
 
 def test_indian_grouping_has_no_decimals():

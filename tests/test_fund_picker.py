@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from utils import (
+from fund_picker import (
     fund_option_label,
     fund_search_text,
     sync_fund_picker_state,
