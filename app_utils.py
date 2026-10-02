@@ -1,25 +1,24 @@
 """
-Utility functions for SIP Rolling Returns application.
-Includes formatting, validation, charting, and Excel export functions.
+Formatting, validation, charts, and Excel export for SIP Rolling Returns.
+
+This module is named app_utils, not utils. A third-party package named
+utils (and Streamlit's own utils modules) can be imported in its place.
+``from utils import validate_inputs`` then raises ImportError even though
+this file defines that name. Streamlit Cloud redacts the missing-name
+message, so the traceback stops on that import.
+
+Fund picker helpers live in fund_picker.py. This module does not re-export
+them. pandas, matplotlib, and dateutil are imported only after the public
+functions are defined, so a circular import while those libraries load
+cannot hide the names app.py needs at startup.
 """
+
+from __future__ import annotations
 
 from typing import List, Optional
 
-# Bind picker helpers before pandas or matplotlib import. A circular import
-# during those libraries must not hide fund_option_label.
-from fund_picker import (
-    fund_option_label,
-    fund_search_text,
-    sync_fund_picker_state,
-    unique_fund_matches,
-)
-
 import math
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
 from io import BytesIO
 
 from app_config import (
@@ -448,3 +447,11 @@ def build_excel(df_export: pd.DataFrame, scheme_name: str, years: int,
 
     buf.seek(0)
     return buf
+
+
+# Imported after the functions above exist. A circular import during these
+# libraries must not hide validate_inputs and the other startup names.
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from dateutil.relativedelta import relativedelta

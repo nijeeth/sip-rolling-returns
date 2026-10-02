@@ -1,7 +1,7 @@
 """Fund combobox helpers. No Streamlit, pandas, or matplotlib imports.
 
-app.py imports these names from this module so startup does not depend on
-utils.py having finished loading them.
+app.py imports these names from this module. They are not re-exported
+through app_utils.
 """
 
 from typing import List, Optional

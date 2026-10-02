@@ -5,6 +5,14 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-10-02
+
+### Fixed
+
+- The app starts again on Streamlit Cloud. Formatting, validation, charts, and Excel export live in `app_utils.py`. A different module named `utils` (an installed package, or another `utils` already imported) was being loaded instead, so `from utils import ...` raised ImportError. Cloud hides that message and the traceback stops on `app.py`. Fund picker helpers stay in `fund_picker.py` and are not re-exported.
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.2.5] - 2026-10-02
 
 ### Changed
