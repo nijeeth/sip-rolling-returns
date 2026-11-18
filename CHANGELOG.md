@@ -5,6 +5,15 @@ All notable changes to the SIP Rolling Returns Calculator are documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-11-18
+
+### Added
+
+- A scheduled check opens the public Streamlit app three times a day and presses "Yes, get this app back up!" if the app is asleep. The times are 01:00, 09:00, and 17:00 UTC, which is about 6:00 am, 2:00 pm, and 10:00 pm New Zealand daylight time (an hour earlier in New Zealand winter). It can also be run by hand from the Actions tab.
+- A second scheduled check updates `.github/keepalive.txt` on the 1st and the 16th of each month and commits that date, so GitHub does not turn the schedules off after 60 days without activity. The commit message includes `[skip ci]`.
+
+Calculations (XIRR, CAGR, and rolling windows) are unchanged.
+
 ## [1.2.6] - 2026-10-02
 
 ### Fixed

@@ -42,7 +42,11 @@ sip_app/
 ├── CHANGELOG.md        # Version history
 ├── WHATS_NEW.md        # Plain-language notes for each version
 ├── LICENSE             # MIT License
-└── README.md           # This file
+├── README.md           # This file
+├── .github/workflows/keep-awake.yml
+├── .github/workflows/keepalive-commit.yml
+├── .github/scripts/keep_awake.py
+└── .github/keepalive.txt
 ```
 
 
@@ -101,6 +105,22 @@ app_utils.py
   └── uses: formatting constants
 ```
 
+
+## Keep-awake
+
+The calculator on the web is hosted for free. If nobody opens it for about 12 hours, the host puts it to sleep. The next person then sees a page that says "Yes, get this app back up!" and has to wait while it starts.
+
+A free automatic check opens the calculator three times a day. If it is asleep, the check presses that button and waits until the calculator is on the screen. If it is already open, the check says so in its log and leaves it alone. The check fails only when the calculator still does not load.
+
+The three times are **6:00 in the morning, 2:00 in the afternoon, and 10:00 at night, New Zealand daylight time** (late September to early April). In New Zealand winter the same check runs at 5:00 am, 1:00 pm, and 9:00 pm. GitHub sometimes starts a scheduled check a little late.
+
+GitHub turns automatic checks off if a project sits untouched for 60 days. A second check, on the **1st and the 16th of each month**, writes today's date into a small file, `.github/keepalive.txt`, and saves that change. That save counts as activity, so the daily check stays switched on. The file is not part of the calculator, and the numbers in the app do not change. The save is made by GitHub's own automation account, with the message `chore: keepalive date update [skip ci]`, so it does not set off other automatic checks.
+
+To run either check yourself: open this project on GitHub, open the **Actions** tab, choose **Keep the calculator awake** or **Keep automatic checks switched on**, press **Run workflow**, then press the green **Run workflow** button. Open that run when it finishes. For the daily check, the log says whether the calculator was already awake or had to be woken. For the date check, `.github/keepalive.txt` on the main branch shows the new date.
+
+To change the times, edit the `cron:` line in `.github/workflows/keep-awake.yml` (the three daily visits) or `.github/workflows/keepalive-commit.yml` (the date). The times are in UTC. New Zealand daylight time is 13 hours ahead of UTC, and New Zealand standard time is 12 hours ahead. The daily line `0 1,9,17 * * *` means "at 1:00, 9:00, and 17:00 UTC, every day".
+
+The check opens https://sip-rolling-returns.streamlit.app/. That is the public site for this calculator. It was not listed in the project files, so the check uses it unless you say otherwise. If the address changes, set a repository variable named `STREAMLIT_APP_URL` to the new address: **Settings → Secrets and variables → Actions → Variables**. You need to set that variable when the site moves. Until you do, the check keeps using the address above.
 
 ## 📞 Support
 
