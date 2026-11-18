@@ -123,29 +123,29 @@ def _in_app_whats_new() -> str:
 
 def test_in_app_whats_new_is_the_user_facing_summary():
     latest = _in_app_whats_new()
-    assert latest.startswith("## Version 1.2.4 — 2 October 2026")
-    assert "anniversary" in latest.lower()
-    assert "next day that has a NAV" in latest
-    assert "31 December" in latest
-    # The new note is dated on its own. It does not announce amount defaults.
-    redemption_note, previous = latest.split("\n## ", 1)
-    assert "₹" not in redemption_note
-    assert "default" not in redemption_note.lower()
-    previous = "## " + previous
-    assert previous.startswith("## Version 1.2.2")
+    assert latest.startswith("## Version 1.2.7 — 18 November 2026")
+    assert "Yes, get this app back up!" in latest
+    assert "same as before" in latest
+    # The new note is about the public site staying open. It does not
+    # announce amount defaults or internal startup fixes.
+    keep_awake_note, previous = latest.split("\n## ", 1)
+    assert "₹" not in keep_awake_note
+    assert "default" not in keep_awake_note.lower()
     assert "ImportError" not in latest
     assert "startup error" not in latest.lower()
     assert "config.py" not in latest
-    assert "4 characters" in previous
-    assert "spaces count" in previous
-    assert "Lump sum" in previous
-    assert "₹1,000" in previous
-    assert "₹10,000" in previous
-    assert "30 funds" in previous
-    lowered = previous.lower()
-    assert "one box" in lowered
-    assert "no second dropdown" not in lowered
-    assert "click a row" not in lowered
+    previous = "## " + previous
+    assert previous.startswith("## Version 1.2.4 — 2 October 2026")
+    assert "anniversary" in previous.lower()
+    assert "next day that has a NAV" in previous
+    assert "31 December" in previous
+    assert "₹" not in previous
+    assert "default" not in previous.lower()
+    full = Path("WHATS_NEW.md").read_text(encoding="utf-8")
+    assert "## Version 1.2.2" in full
+    assert "4 characters" in full
+    assert "spaces count" in full
+    assert "30 funds" in full
 
 
 def test_how_it_works_and_readme_describe_the_one_box():

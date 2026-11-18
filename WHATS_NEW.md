@@ -2,6 +2,10 @@
 
 A short log of what changed for people using the calculator.
 
+## Version 1.2.7 — 18 November 2026
+
+- **The public calculator is checked while it is quiet.** The free host puts the site to sleep after about 12 hours with no visitors. A check opens it three times a day, about 6:00 am, 2:00 pm, and 10:00 pm New Zealand daylight time. If it is asleep, the check presses "Yes, get this app back up!". The returns on the page are the same as before.
+
 ## Version 1.2.4 — 2 October 2026
 
 - **A SIP is sold on its anniversary.** For an N-year SIP, the sale date is the start date plus N years. A SIP that starts on 1 January 2024 is sold on 1 January 2025. The same rule applies to every other start date. If that day is a weekend or a market holiday, or there is no NAV, the sale uses the next day that has a NAV. The sale is not the day after the last monthly payment, and 31 December of the same year is not treated as one year. In the Excel file, End Date is that anniversary and Redemption Date is the day the units are sold.
